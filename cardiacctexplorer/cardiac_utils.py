@@ -150,7 +150,7 @@ def extract_laa_roi(params):
 
 def predict_laa_with_nudf(params):
     """
-    Extract the region around the left atrial appendage
+    Predict the labelmap of the left atrial appendage using the NUDF model
     """
     input_file = params["input_file"]
     ts_folder = params["ts_folder"]
@@ -410,14 +410,13 @@ def setup_nudf_folder_and_get_checkpoint(params):
         if params["write_log_file"]:
             gu.write_message_to_log_file(base_dir=params["output_folder"], message=msg, level="error")
         return False
-
     return params
 
 
 
 def cardiac_analysis(in_files, output_folder, params):
     verbose = params["verbose"]
-    setup_nudf_folder_and_get_checkpoint(params)
+    params = setup_nudf_folder_and_get_checkpoint(params)
 
     num_processes = params.get("num_proc_general", 1)
 
