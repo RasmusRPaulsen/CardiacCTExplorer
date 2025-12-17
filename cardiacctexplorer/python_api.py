@@ -10,6 +10,9 @@ from cardiacctexplorer.fileconverter_utils import convert_input_files
 
 def get_default_parameters():
     default_parms = {
+        "nudf_model_url": "https://shapeml.compute.dtu.dk/NUDF/",
+        "nudf_checkpoint": "NUDF_checkpoint_epoch_24_17-12-2025.tar",
+        "nudf_model_folder": "",
         "num_proc_total_segmentator": 1,
         "num_proc_general": 1,
         "recurse_subfolders": False,

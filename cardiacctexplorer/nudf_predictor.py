@@ -3,9 +3,8 @@ import torch
 import numpy as np
 
 class NUDFPredictor:
-    def __init__(self, threshold, checkpoint, device = torch.device("cuda"), resolution = 16, batch_points = 1000000):
+    def __init__(self, checkpoint, device = torch.device("cuda"), resolution = 16, batch_points = 1000000):
         self.model = None
-        self.threshold = threshold
         self.checkpoint = checkpoint
         self.device = device
         self.resolution = resolution

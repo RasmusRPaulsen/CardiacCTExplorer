@@ -26,6 +26,7 @@ from skimage.util import img_as_ubyte
 import importlib.metadata
 from scipy.ndimage import distance_transform_edt
 import torch
+from torch.utils.model_zoo import load_url
 
 def extract_laa_roi(params):
     """
@@ -162,14 +163,14 @@ def predict_laa_with_nudf(params):
     device = params["device"]
 
     crop_name_in = f"{crops_folder}laa_roi.nii.gz"
-    # crop_name_np = f"{crops_folder}laa_roi.npy"
-    # sdf_out_name = f"{segm_folder}laa_nudf_sdf.mhd"
     sdf_out_name = f"{segm_folder}laa_nudf_sdf.nii.gz"
     crop_label_out_name = f"{segm_folder}laa_nudf_label_crop.nii.gz"
     laa_label_out_name = f"{segm_folder}laa_nudf_label.nii.gz"
     segm_name_total = f"{ts_folder}total.nii.gz"
 
-    # Should be set somewhere else
+    debug = False
+
+    # TODO: Should be set somewhere else
     min_hu = 200
 
     if verbose:
@@ -189,11 +190,11 @@ def predict_laa_with_nudf(params):
     # TODO: Get from config
     resolution = 128
     batch_points = 100000
-    threshold = 0.5
-    checkpoint_file = "C:/data/NUDF-model-16-12-2025/checkpoint_epoch_24.tar"
+    # checkpoint_file = "C:/data/NUDF-model-16-12-2025/checkpoint_epoch_24.tar"
+    checkpoint_file = params["nudf_checkpoint_file"]
 
     # TODO: Update device based on params
-    nudf_predictor = NUDFPredictor(threshold, checkpoint_file, device=torch.device("cuda"), resolution=resolution, batch_points=batch_points)
+    nudf_predictor = NUDFPredictor(checkpoint_file, device=torch.device("cuda"), resolution=resolution, batch_points=batch_points)
 
     if verbose:
         print("Setting up NUDF model")
@@ -205,15 +206,7 @@ def predict_laa_with_nudf(params):
             write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
-    points = []
-    coords = []
-    occupancies = []
-    data = {'grid_coords':np.array(coords, dtype=np.float32),
-            'occupancies': np.array(occupancies, dtype=np.float32),
-            'points':np.array(points, dtype=np.float32),
-            'inputs': np.array(input, dtype=np.float32),
-            'path' : crop_name_in}
-
+    data = {'inputs': np.array(input, dtype=np.float32)}
 
     if verbose:
         print("Running NUDF prediction")
@@ -225,9 +218,10 @@ def predict_laa_with_nudf(params):
 
     # Flip to get correct orientation
     numpy_3d_sdf_tensor = np.flip(numpy_3d_sdf_tensor, 2)
-    img_sdf = sitk.GetImageFromArray(numpy_3d_sdf_tensor)
-    img_sdf.CopyInformation(crop_img)
-    sitk.WriteImage(img_sdf, sdf_out_name)
+    if debug:
+        img_sdf = sitk.GetImageFromArray(numpy_3d_sdf_tensor)
+        img_sdf.CopyInformation(crop_img)
+        sitk.WriteImage(img_sdf, sdf_out_name)
 
     if verbose:
         print("Generating LAA label from SDF")
@@ -259,7 +253,8 @@ def predict_laa_with_nudf(params):
     laa_mask = components[0]
     laa_mask_sitk = sitk.GetImageFromArray(laa_mask.astype(np.uint8))
     laa_mask_sitk.CopyInformation(crop_img)
-    sitk.WriteImage(laa_mask_sitk, crop_label_out_name)
+    if debug:
+        sitk.WriteImage(laa_mask_sitk, crop_label_out_name)
 
     # Read total segmentation to place LAA label in correct location
     label_img_total = io_utils.read_nifti_with_logging_cached(segm_name_total, verbose, quiet, write_log_file, output_folder)
@@ -376,9 +371,51 @@ def computer_process(params, output_folder, process_queue, process_id):
         with open(time_stats_out, "w") as f:
             f.write(f"{elapsed_time}\n")
 
+def setup_nudf_folder_and_get_checkpoint(params):
+    """
+    Setup NUDF model folder and get checkpoint file
+    """
+    verbose = params["verbose"]
+
+    nudf_model_url = params["nudf_model_url"]
+    nudf_checkpoint = params["nudf_checkpoint"]
+    nudf_model_folder = params.get("nudf_model_folder", "")
+    if nudf_model_folder == "":
+        # Find home directory
+        home_dir = str(Path.home())
+        nudf_model_folder = os.path.join(home_dir, ".cardiacctexplorer", "nudf_model")
+        if verbose:
+            print(f"NUDF model folder not specified - setting it to default: {nudf_model_folder}")
+    params["nudf_model_folder"] = nudf_model_folder
+
+    checkpoint_file = os.path.join(nudf_model_folder, nudf_checkpoint)
+    params["nudf_checkpoint_file"] = checkpoint_file
+    if os.path.exists(checkpoint_file):
+        if verbose:
+            print(f"NUDF checkpoint file already exists: {checkpoint_file}")
+        return params
+    if not(os.path.exists(nudf_model_folder)):
+        os.makedirs(nudf_model_folder)
+    if verbose:
+        print(f"Downloading NUDF model checkpoint from {nudf_model_url} to {checkpoint_file}")
+    load_url(f"{nudf_model_url}{nudf_checkpoint}", model_dir=nudf_model_folder, file_name=nudf_checkpoint,
+             progress=verbose)
+    if not os.path.exists(checkpoint_file):
+        msg = f"Could not download NUDF model checkpoint to {checkpoint_file}"
+        if not params["quiet"]:
+            print(msg)
+        if params["write_log_file"]:
+            gu.write_message_to_log_file(base_dir=params["output_folder"], message=msg, level="error")
+        return False
+
+    return params
+
+
 
 def cardiac_analysis(in_files, output_folder, params):
     verbose = params["verbose"]
+    setup_nudf_folder_and_get_checkpoint(params)
+
     num_processes = params.get("num_proc_general", 1)
 
     if verbose:
