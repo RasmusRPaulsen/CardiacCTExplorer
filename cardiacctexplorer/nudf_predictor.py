@@ -48,6 +48,7 @@ class NUDFPredictor:
 
 
     def predict(self, data):
+        debug = False
         inputs = data['inputs']
         # Create torch tensor and send to device
         inputs = torch.from_numpy(inputs)
@@ -56,7 +57,8 @@ class NUDFPredictor:
         label_list = []
         idx = 0
         for points in self.grid_points_split:
-            print(f"Computing batch {idx+1} / {len(self.grid_points_split)}")
+            if debug:
+                print(f"Computing batch {idx+1} / {len(self.grid_points_split)}")
             idx += 1
             with torch.no_grad():
                 #logits = self.model(points,inputs)

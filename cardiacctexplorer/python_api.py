@@ -17,6 +17,7 @@ def get_default_parameters():
         "num_proc_general": 1,
         "recurse_subfolders": False,
         "out_of_reconstruction_value": -2048,
+        "minimum_laa_hu_value": 200,
         "forced_aorta_min_hu_value": None,
         "forced_aorta_max_hu_value": None,
         "aorta_min_hu_value": 80,

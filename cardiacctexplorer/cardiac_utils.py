@@ -27,6 +27,8 @@ import importlib.metadata
 from scipy.ndimage import distance_transform_edt
 import torch
 from torch.utils.model_zoo import load_url
+from totalsegmentator.python_api import select_device
+
 
 def extract_laa_roi(params):
     """
@@ -35,7 +37,7 @@ def extract_laa_roi(params):
     input_file = params["input_file"]
     ts_folder = params["ts_folder"]
     output_folder = params["output_folder"]
-    scan_id = params["pure_id"]
+    # scan_id = params["pure_id"]
     crops_folder = params["crops_folder"]
     quiet = params["quiet"]
     verbose = params["verbose"]
@@ -43,7 +45,7 @@ def extract_laa_roi(params):
 
     segm_name_total = f"{ts_folder}total.nii.gz"
     crop_out_name = f"{crops_folder}laa_roi.nii.gz"
-    crop_out_name_np = f"{crops_folder}laa_roi.npy"
+    # crop_out_name_np = f"{crops_folder}laa_roi.npy"
     laa_label_id = 61
 
     if os.path.exists(crop_out_name):
@@ -137,12 +139,11 @@ def extract_laa_roi(params):
     interpolator = sitk.sitkLinear
     # Create final resampled image
     resampled_image = sitk.Resample(ct_img, new_image, translation, interpolator, default_value)
-
     sitk.WriteImage(resampled_image, crop_out_name)
 
-    occ_np = sitk.GetArrayViewFromImage(resampled_image)
-    occ_np = np.flip(occ_np, 2)
-    np.save(crop_out_name_np, occ_np)
+    # occ_np = sitk.GetArrayViewFromImage(resampled_image)
+    # occ_np = np.flip(occ_np, 2)
+    # np.save(crop_out_name_np, occ_np)
 
     return True
 
@@ -154,14 +155,14 @@ def predict_laa_with_nudf(params):
     input_file = params["input_file"]
     ts_folder = params["ts_folder"]
     output_folder = params["output_folder"]
-    scan_id = params["pure_id"]
+    # scan_id = params["pure_id"]
     crops_folder = params["crops_folder"]
     segm_folder = params["segm_folder"]
     quiet = params["quiet"]
     verbose = params["verbose"]
     write_log_file = params["write_log_file"]
-    device = params["device"]
-
+    device_in = params["device"]
+    min_hu = params.get("minimum_laa_hu_value", 200)
     crop_name_in = f"{crops_folder}laa_roi.nii.gz"
     sdf_out_name = f"{segm_folder}laa_nudf_sdf.nii.gz"
     crop_label_out_name = f"{segm_folder}laa_nudf_label_crop.nii.gz"
@@ -170,11 +171,14 @@ def predict_laa_with_nudf(params):
 
     debug = False
 
-    # TODO: Should be set somewhere else
-    min_hu = 200
-
     if verbose:
-        print(f"Reading {crop_name_in}")
+        print(f"Computing LAA prediction with NUDF for {input_file}")
+    if os .path.exists(laa_label_out_name):
+        if verbose:
+            print(f"{laa_label_out_name} already exists - skipping")
+        return True
+
+    device = select_device(device_in)
 
     crop_img = io_utils.read_nifti_with_logging_cached(crop_name_in, verbose, quiet, write_log_file, output_folder)
     if crop_img is None:
@@ -183,18 +187,17 @@ def predict_laa_with_nudf(params):
     crop_img_np = sitk.GetArrayFromImage(crop_img)
     # Flip to make compatible with NUDF input
     crop_img_np = np.flip(crop_img_np, 2)
-    crop_normalized = np.clip(crop_img_np, -1000, 1000) / 1000  # Heart normalization
+    # HU normalization
+    crop_normalized = np.clip(crop_img_np, -1000, 1000) / 1000
     # Reshape to add channel dimension
     input = np.expand_dims(crop_normalized, axis=0)
 
     # TODO: Get from config
     resolution = 128
     batch_points = 100000
-    # checkpoint_file = "C:/data/NUDF-model-16-12-2025/checkpoint_epoch_24.tar"
     checkpoint_file = params["nudf_checkpoint_file"]
 
-    # TODO: Update device based on params
-    nudf_predictor = NUDFPredictor(checkpoint_file, device=torch.device("cuda"), resolution=resolution, batch_points=batch_points)
+    nudf_predictor = NUDFPredictor(checkpoint_file, device=device, resolution=resolution, batch_points=batch_points)
 
     if verbose:
         print("Setting up NUDF model")
