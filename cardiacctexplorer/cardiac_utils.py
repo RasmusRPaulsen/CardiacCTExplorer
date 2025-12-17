@@ -165,6 +165,12 @@ def predict_laa_with_nudf(params):
     # crop_name_np = f"{crops_folder}laa_roi.npy"
     # sdf_out_name = f"{segm_folder}laa_nudf_sdf.mhd"
     sdf_out_name = f"{segm_folder}laa_nudf_sdf.nii.gz"
+    crop_label_out_name = f"{segm_folder}laa_nudf_label_crop.nii.gz"
+    laa_label_out_name = f"{segm_folder}laa_nudf_label.nii.gz"
+    segm_name_total = f"{ts_folder}total.nii.gz"
+
+    # Should be set somewhere else
+    min_hu = 200
 
     if verbose:
         print(f"Reading {crop_name_in}")
@@ -199,12 +205,6 @@ def predict_laa_with_nudf(params):
             write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
-    # Read data
-    # img = np.load(crop_name_np)
-    # input = np.clip(img,-1000,1000)/1000 #Heart normalization
-    # # Reshape to add channel dimension
-    # input = np.expand_dims(input, axis=0)
-
     points = []
     coords = []
     occupancies = []
@@ -217,28 +217,72 @@ def predict_laa_with_nudf(params):
 
     if verbose:
         print("Running NUDF prediction")
-    logits, labels = nudf_predictor.predict(data)
+    logits, _ = nudf_predictor.predict(data)
 
     # Export SDF
     dim = (np.round(len(logits)**(1/3)).astype(int),)*3
-    voxel_grid_origin = [-1, -1, -1]
-    voxel_size = 2.0 / (dim[0] - 1)
-
-    #np.save(export_path + 'logits_reconstruction.npy',logits)
     numpy_3d_sdf_tensor = np.reshape(logits,dim)
 
     # Flip to get correct orientation
     numpy_3d_sdf_tensor = np.flip(numpy_3d_sdf_tensor, 2)
-
     img_sdf = sitk.GetImageFromArray(numpy_3d_sdf_tensor)
     img_sdf.CopyInformation(crop_img)
-    # img_sdf.SetOrigin(voxel_grid_origin)
-    # img_sdf.SetSpacing((voxel_size,voxel_size,voxel_size))
-
     sitk.WriteImage(img_sdf, sdf_out_name)
 
+    if verbose:
+        print("Generating LAA label from SDF")
 
+    # Generate label volume
+    laa_label_np = (numpy_3d_sdf_tensor < 0).astype(np.uint8)
 
+    # Flip crop image back to original orientation
+    crop_img_np = np.flip(crop_img_np, 2)
+    # Should have a minimum HU to be considered part of LAA
+    laa_label_np[crop_img_np <= min_hu] = 0
+
+    spacing = crop_img.GetSpacing()
+    # We want at least 1 cubic centimeter
+    min_comp_size_mm3 = 1000
+    min_comp_size_vox = int(min_comp_size_mm3 / (spacing[0] * spacing[1] * spacing[2]))
+    if verbose:
+        print(f"Finding LAA components with min_comp_size: {min_comp_size_vox} voxels = {min_comp_size_mm3:.1f} mm^3")
+
+    components = su.get_components_over_certain_size_as_individual_volumes(laa_label_np, min_comp_size_vox, 1)
+    if components is None or len(components) == 0:
+        msg = f"Could not find any components of size > {min_comp_size_mm3} mm3 in {segm_in_name}"
+        if not quiet:
+            print(msg)
+        if write_log_file:
+            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+        return False
+
+    laa_mask = components[0]
+    laa_mask_sitk = sitk.GetImageFromArray(laa_mask.astype(np.uint8))
+    laa_mask_sitk.CopyInformation(crop_img)
+    sitk.WriteImage(laa_mask_sitk, crop_label_out_name)
+
+    # Read total segmentation to place LAA label in correct location
+    label_img_total = io_utils.read_nifti_with_logging_cached(segm_name_total, verbose, quiet, write_log_file, output_folder)
+    if label_img_total is None:
+        return False
+
+    # Resample LAA label to original image size and spacing
+    original_size = label_img_total.GetSize()
+    original_spacing = label_img_total.GetSpacing()
+    original_origin = label_img_total.GetOrigin()
+    original_direction = label_img_total.GetDirection()
+    new_image = sitk.Image(original_size, laa_mask_sitk.GetPixelIDValue())
+    new_image.SetOrigin(original_origin)
+    new_image.SetSpacing(original_spacing)
+    new_image.SetDirection(original_direction)
+    # Make translation with no offset, since sitk.Resample needs this arg.
+    translation = sitk.TranslationTransform(3)
+    translation.SetOffset((0, 0, 0))
+    default_value = 0
+    interpolator = sitk.sitkNearestNeighbor
+    # Create final resampled image
+    resampled_image = sitk.Resample(laa_mask_sitk, new_image, translation, interpolator, default_value)
+    sitk.WriteImage(resampled_image, laa_label_out_name)
 
     return True
 
