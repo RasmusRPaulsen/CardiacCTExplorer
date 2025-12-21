@@ -30,6 +30,114 @@ from torch.utils.model_zoo import load_url
 from totalsegmentator.python_api import select_device
 
 
+
+def compute_mask_hu_statistics(ct_img_np, mask, spacing, anatomy_name, segm_name, params, hu_stats):
+    quiet = params["quiet"]
+    verbose = params["verbose"]
+    write_log_file = params["write_log_file"]
+    out_of_scan_value = params.get("out_of_reconstruction_value", -2048)
+
+    # Set out of scan values to NaN to not affect statistics
+    # Remove the part of the mask, where the image values are below out_of_scan_value + 1
+    mask = np.logical_and(mask, ct_img_np > out_of_scan_value + 1)
+
+    if np.sum(mask) == 0:
+        msg = f"Could not find {anatomy_name} label in TotalSegmentator segmentation {segm_name}."
+        if not quiet:
+            print(msg)
+        if write_log_file:
+            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+        return False
+
+    erosion_diam = 2  # in mm
+    mask_eroded = su.edt_based_erosion(mask, [spacing[2], spacing[1], spacing[0]], erosion_diam)
+    if np.sum(mask_eroded) == 0:
+        msg = f"Could not find {anatomy_name} label in TotalSegmentator segmentation {segm_name} after erosion."
+        if not quiet:
+            print(msg)
+        if write_log_file:
+            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+        return False
+
+    hu_vals = ct_img_np[mask_eroded]
+    hu_stats[f"{anatomy_name}_count"] = len(hu_vals)
+    hu_stats[f"{anatomy_name}_mean"] = np.mean(hu_vals)
+    hu_stats[f"{anatomy_name}_std"] = np.std(hu_vals)
+    hu_stats[f"{anatomy_name}_med"] = np.median(hu_vals)
+    hu_stats[f"{anatomy_name}_min"] = int(np.min(hu_vals))
+    hu_stats[f"{anatomy_name}_max"] = int(np.max(hu_vals))
+    hu_stats[f"{anatomy_name}_q01"] = np.percentile(hu_vals, 1)
+    hu_stats[f"{anatomy_name}_q99"] = np.percentile(hu_vals, 99)
+    hu_stats[f"{anatomy_name}_q001"] = np.percentile(hu_vals, 0.1)
+    hu_stats[f"{anatomy_name}_q999"] = np.percentile(hu_vals, 99.9)
+    return True
+
+
+def compute_hu_statistics(params):
+    """
+    Compute Hounsfield unit statistics in known regions of the heart
+    """
+    input_file = params["input_file"]
+    ts_folder = params["ts_folder"]
+    output_folder = params["output_folder"]
+    # scan_id = params["pure_id"]
+    crops_folder = params["crops_folder"]
+    stats_folder = params["stats_folder"]
+    quiet = params["quiet"]
+    verbose = params["verbose"]
+    write_log_file = params["write_log_file"]
+
+    segm_name_total = f"{ts_folder}total.nii.gz"
+    segm_name_hc = f"{ts_folder}heartchambers_highres.nii.gz"
+    stats_out_name = f"{stats_folder}hu_statistics.json"
+    la_segm_id = 2
+    pv_segm_id = 53
+    aorta_segm_id = 6
+
+    if os.path.exists(stats_out_name):
+        if not quiet:
+            print(f"{stats_out_name} already exists - skipping")
+        return True
+
+    if verbose:
+        print(f"Computing {stats_out_name}")
+
+    label_img_total = io_utils.read_nifti_with_logging_cached(segm_name_total, verbose, quiet, write_log_file, output_folder)
+    if label_img_total is None:
+        return False
+
+    label_img_hc = io_utils.read_nifti_with_logging_cached(segm_name_hc, verbose, quiet, write_log_file, output_folder)
+    if label_img_hc is None:
+        return False
+
+    ct_img = io_utils.read_nifti_with_logging_cached(input_file, verbose, quiet, write_log_file, output_folder)
+    if ct_img is None:
+        return False
+
+    ct_img_np = sitk.GetArrayFromImage(ct_img)
+    label_img_total_np = sitk.GetArrayFromImage(label_img_total)
+    label_img_hc_np = sitk.GetArrayFromImage(label_img_hc)
+    pv_mask = label_img_total_np == pv_segm_id
+    la_mask = label_img_hc_np == la_segm_id
+    aorta_mask = label_img_hc_np == aorta_segm_id
+    spacing = label_img_total.GetSpacing()
+
+    hu_stats = {}
+    compute_mask_hu_statistics(ct_img_np, pv_mask, spacing, "pv", segm_name_total,
+                                         params, hu_stats)
+    compute_mask_hu_statistics(ct_img_np, la_mask, spacing, "la", segm_name_hc,
+                                         params, hu_stats)
+    compute_mask_hu_statistics(ct_img_np, aorta_mask, spacing, "aorta", segm_name_hc,
+                                         params, hu_stats)
+
+    json_object = json.dumps(hu_stats, indent=4)
+    with open(stats_out_name, "w") as outfile:
+        outfile.write(json_object)
+
+
+    return False
+
+
 def extract_laa_roi(params):
     """
     Extract the region around the left atrial appendage
@@ -71,7 +179,7 @@ def extract_laa_roi(params):
     if ct_img is None:
         return False
 
-    ct_np = sitk.GetArrayFromImage(ct_img)
+    # ct_np = sitk.GetArrayFromImage(ct_img)
     label_img_total_np = sitk.GetArrayFromImage(label_img_total)
     laa_mask = label_img_total_np == laa_label_id
 
@@ -323,12 +431,12 @@ def do_cardiac_analysis(params):
     # TODO: add exception handling later. Now we should see where the error occurs
     # try:
     success = True
-    success = extract_laa_roi(params)
-    if not success:
-        return False
-    success = predict_laa_with_nudf(params)
-    if not success:
-        return False
+    if success:
+        success = compute_hu_statistics(params)
+    if success:
+        success = extract_laa_roi(params)
+    if success:
+        success = predict_laa_with_nudf(params)
     # except Exception as e:
     #     msg = "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"
     #     msg += f"Exception during cardiac analysis of {scan_id}: {str(e)}\n"
