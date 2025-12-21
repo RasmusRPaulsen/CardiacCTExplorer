@@ -18,6 +18,7 @@ def get_default_parameters():
         "recurse_subfolders": False,
         "out_of_reconstruction_value": -2048,
         "minimum_laa_hu_value": 200,
+        "minimum_pv_hu_value": 200,
         "forced_aorta_min_hu_value": None,
         "forced_aorta_max_hu_value": None,
         "aorta_min_hu_value": 80,

@@ -12,7 +12,7 @@ import cardiacctexplorer.segmentation_utils as su
 from cardiacctexplorer.nudf_predictor import NUDFPredictor
 import SimpleITK as sitk
 import numpy as np
-from skimage.morphology import skeletonize, binary_dilation, binary_closing, ball
+from skimage.morphology import skeletonize, binary_dilation, binary_closing, binary_opening, ball
 from skimage.measure import label
 from skimage.segmentation import find_boundaries
 import edt
@@ -292,9 +292,9 @@ def predict_laa_with_nudf(params):
         la_q001_hu = hu_stats.get("la_q001", 100000)
         pv_q001 = hu_stats.get("pv_q001", 100000)
         aorta_q001 = hu_stats.get("aorta_q001", 100000)
-        hu_min = min(la_q001_hu, pv_q001, aorta_q001, min_hu)
+        min_hu = min(la_q001_hu, pv_q001, aorta_q001, min_hu)
     if verbose:
-        print(f"Using minimum HU value of {hu_min} for LAA prediction")
+        print(f"Using minimum HU value of {min_hu} for LAA prediction")
 
     device = select_device(device_in)
 
@@ -403,6 +403,128 @@ def predict_laa_with_nudf(params):
     return True
 
 
+def refine_pulmonary_veins(params):
+    """
+    The pulmonary veins (PV) segmentations from TotalSegmentator mostly does not go all the way to the left atrium (LA),
+    This function tries to refine the PV segmentation to include the part that is connected to the LA.
+    """
+    input_file = params["input_file"]
+    ts_folder = params["ts_folder"]
+    output_folder = params["output_folder"]
+    stats_folder = params["stats_folder"]
+    segm_folder = params["segm_folder"]
+    quiet = params["quiet"]
+    verbose = params["verbose"]
+    write_log_file = params["write_log_file"]
+    hu_stats_name = f"{stats_folder}hu_statistics.json"
+    min_hu = params.get("minimum_pv_hu_value", 200)
+
+    segm_name_total = f"{ts_folder}total.nii.gz"
+    segm_name_hc = f"{ts_folder}heartchambers_highres.nii.gz"
+    segm_name_laa = f"{segm_folder}laa_nudf_label.nii.gz"
+    segm_out_name = f"{segm_folder}pv_refined.nii.gz"
+    la_segm_id = 2
+    pv_segm_id = 53
+    dist_threshold = 7
+    do_morpho = True
+    debug = True
+
+
+    # if os.path.exists(segm_out_name):
+    #     if not quiet:
+    #         print(f"{segm_out_name} already exists - skipping")
+    #     return True
+
+    if verbose:
+        print(f"Computing {segm_out_name}")
+
+    if os.path.exists(hu_stats_name):
+        with open(hu_stats_name, "r") as f:
+            hu_stats = json.load(f)
+        la_q001_hu = hu_stats.get("la_q001", 100000)
+        pv_q001 = hu_stats.get("pv_q001", 100000)
+        min_hu = min(la_q001_hu, pv_q001, min_hu)
+    if verbose:
+        print(f"Using minimum HU value of {min_hu} for pulmonary veins refinement")
+
+    label_img_total = io_utils.read_nifti_with_logging_cached(segm_name_total, verbose, quiet, write_log_file, output_folder)
+    if label_img_total is None:
+        return False
+
+    label_img_hc = io_utils.read_nifti_with_logging_cached(segm_name_hc, verbose, quiet, write_log_file, output_folder)
+    if label_img_hc is None:
+        return False
+
+    label_img_laa = io_utils.read_nifti_with_logging_cached(segm_name_laa, verbose, quiet, write_log_file, output_folder)
+    if label_img_laa is None:
+        return False
+
+    ct_img = io_utils.read_nifti_with_logging_cached(input_file, verbose, quiet, write_log_file, output_folder)
+    if ct_img is None:
+        return False
+
+    ct_img_np = sitk.GetArrayFromImage(ct_img)
+    label_img_total_np = sitk.GetArrayFromImage(label_img_total)
+    label_img_hc_np = sitk.GetArrayFromImage(label_img_hc)
+    label_img_laa_np = sitk.GetArrayFromImage(label_img_laa)
+    pv_mask = label_img_total_np == pv_segm_id
+    la_mask = label_img_hc_np == la_segm_id
+    laa_mask = label_img_laa_np == 1
+    spacing = label_img_total.GetSpacing()
+    hc_all_mask = label_img_hc_np > 0
+
+    pv_refined_mask = np.copy(pv_mask)
+    n_iterations = 2
+    for iteration in range(n_iterations):
+        if verbose:
+            print(f"Refining pulmonary veins - iteration {iteration + 1} of {n_iterations}")
+        overlap_mask = su.edt_based_overlap(pv_refined_mask, la_mask, [spacing[2], spacing[1], spacing[0]],
+                                            dist_threshold)
+
+        new_refined_mask = np.bitwise_or(pv_refined_mask, overlap_mask)
+
+        # Remove the LAA from the overlap region since it is often get caught in the PV
+        new_refined_mask = np.bitwise_and(new_refined_mask, np.bitwise_not(laa_mask))
+
+        # Remove all heart chambers from refined mask to avoid leakage
+        new_refined_mask = np.bitwise_and(new_refined_mask, np.bitwise_not(hc_all_mask))
+
+        # Keep only the part of pv that has HU above min_hu
+        new_refined_mask = np.bitwise_and(new_refined_mask, ct_img_np > min_hu)
+
+        if do_morpho:
+            radius = 3
+            if iteration == 2:
+                radius = 1
+            footprint = ball(radius=radius)
+            new_refined_mask = binary_opening(new_refined_mask, footprint)
+            footprint = ball(radius=3)
+            new_refined_mask = binary_closing(new_refined_mask, footprint)
+
+        min_comp_size_mm = 1000  # in mm3
+        min_comp_size_vox = int(min_comp_size_mm / (spacing[0] * spacing[1] * spacing[2]))
+
+        components = su.get_components_over_certain_size_as_individual_volumes(new_refined_mask, min_comp_size_vox, 6)
+        if components is None:
+            msg = f"Could not find any pv components of size > {min_comp_size_mm} mm3 in {segm_in_name}"
+            if not quiet:
+                print(msg)
+            if write_log_file:
+                write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+            return False
+
+        refined_segm = components[0]
+        for idx in range(1, len(components)):
+            refined_segm = np.bitwise_or(refined_segm, components[idx])
+
+        pv_refined_mask = np.copy(refined_segm)
+
+    label_img_out = sitk.GetImageFromArray(pv_refined_mask.astype(np.uint8))
+    label_img_out.CopyInformation(label_img_total)
+    sitk.WriteImage(label_img_out, segm_out_name)
+
+    return True
+
 def do_cardiac_analysis(params):
     """
     Compute cardiac data
@@ -447,6 +569,8 @@ def do_cardiac_analysis(params):
         success = extract_laa_roi(params)
     if success:
         success = predict_laa_with_nudf(params)
+    if success:
+        success = refine_pulmonary_veins(params)
     # except Exception as e:
     #     msg = "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"
     #     msg += f"Exception during cardiac analysis of {scan_id}: {str(e)}\n"
