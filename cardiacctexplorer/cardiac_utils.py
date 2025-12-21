@@ -398,7 +398,28 @@ def predict_laa_with_nudf(params):
     interpolator = sitk.sitkNearestNeighbor
     # Create final resampled image
     resampled_image = sitk.Resample(laa_mask_sitk, new_image, translation, interpolator, default_value)
-    sitk.WriteImage(resampled_image, laa_label_out_name)
+
+    laa_resampled_np = sitk.GetArrayFromImage(resampled_image)
+    # Remove the LAA part that is covered by the total segmentation
+    label_img_total_np = sitk.GetArrayFromImage(label_img_total)
+    label_img_total_not_laa = (label_img_total_np > 0) & (label_img_total_np != 61)
+    laa_resampled_np = np.bitwise_and(laa_resampled_np, np.bitwise_not(label_img_total_not_laa))
+
+    laa_label_np = laa_resampled_np == 1
+    components = su.get_components_over_certain_size_as_individual_volumes(laa_label_np, min_comp_size_vox, 1)
+    if components is None or len(components) == 0:
+        msg = f"Could not find any components of size > {min_comp_size_mm3} mm3 in {segm_in_name}"
+        if not quiet:
+            print(msg)
+        if write_log_file:
+            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+        return False
+
+    laa_mask = components[0]
+    laa_mask_sitk = sitk.GetImageFromArray(laa_mask.astype(np.uint8))
+    laa_mask_sitk.CopyInformation(resampled_image)
+
+    sitk.WriteImage(laa_mask_sitk, laa_label_out_name)
 
     return True
 
@@ -427,13 +448,13 @@ def refine_pulmonary_veins(params):
     pv_segm_id = 53
     dist_threshold = 7
     do_morpho = True
-    debug = True
+    # debug = True
 
 
-    # if os.path.exists(segm_out_name):
-    #     if not quiet:
-    #         print(f"{segm_out_name} already exists - skipping")
-    #     return True
+    if os.path.exists(segm_out_name):
+        if not quiet:
+            print(f"{segm_out_name} already exists - skipping")
+        return True
 
     if verbose:
         print(f"Computing {segm_out_name}")
