@@ -131,9 +131,7 @@ def compute_hu_statistics(params):
     json_object = json.dumps(hu_stats, indent=4)
     with open(stats_out_name, "w") as outfile:
         outfile.write(json_object)
-
-
-    return False
+    return True
 
 
 def extract_laa_roi(params):
