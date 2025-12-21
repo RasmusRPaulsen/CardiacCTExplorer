@@ -80,8 +80,6 @@ def compute_hu_statistics(params):
     input_file = params["input_file"]
     ts_folder = params["ts_folder"]
     output_folder = params["output_folder"]
-    # scan_id = params["pure_id"]
-    crops_folder = params["crops_folder"]
     stats_folder = params["stats_folder"]
     quiet = params["quiet"]
     verbose = params["verbose"]
@@ -263,8 +261,8 @@ def predict_laa_with_nudf(params):
     input_file = params["input_file"]
     ts_folder = params["ts_folder"]
     output_folder = params["output_folder"]
-    # scan_id = params["pure_id"]
     crops_folder = params["crops_folder"]
+    stats_folder = params["stats_folder"]
     segm_folder = params["segm_folder"]
     quiet = params["quiet"]
     verbose = params["verbose"]
@@ -276,6 +274,7 @@ def predict_laa_with_nudf(params):
     crop_label_out_name = f"{segm_folder}laa_nudf_label_crop.nii.gz"
     laa_label_out_name = f"{segm_folder}laa_nudf_label.nii.gz"
     segm_name_total = f"{ts_folder}total.nii.gz"
+    hu_stats_name = f"{stats_folder}hu_statistics.json"
 
     debug = False
 
@@ -285,6 +284,17 @@ def predict_laa_with_nudf(params):
         if verbose:
             print(f"{laa_label_out_name} already exists - skipping")
         return True
+
+    # Read HU statistics to adjust min_hu if needed
+    if os.path.exists(hu_stats_name):
+        with open(hu_stats_name, "r") as f:
+            hu_stats = json.load(f)
+        la_q001_hu = hu_stats.get("la_q001", 100000)
+        pv_q001 = hu_stats.get("pv_q001", 100000)
+        aorta_q001 = hu_stats.get("aorta_q001", 100000)
+        hu_min = min(la_q001_hu, pv_q001, aorta_q001, min_hu)
+    if verbose:
+        print(f"Using minimum HU value of {hu_min} for LAA prediction")
 
     device = select_device(device_in)
 
