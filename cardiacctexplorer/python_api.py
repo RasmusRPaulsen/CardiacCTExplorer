@@ -19,6 +19,7 @@ def get_default_parameters():
         "out_of_reconstruction_value": -2048,
         "minimum_laa_hu_value": 200,
         "minimum_pv_hu_value": 200,
+        "minimum_aorta_hu_value": 150,
         "forced_aorta_min_hu_value": None,
         "forced_aorta_max_hu_value": None,
         "aorta_min_hu_value": 80,

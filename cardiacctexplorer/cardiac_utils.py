@@ -400,7 +400,7 @@ def predict_laa_with_nudf(params):
     laa_resampled_np = sitk.GetArrayFromImage(resampled_image)
     # Remove the LAA part that is covered by the total segmentation
     label_img_total_np = sitk.GetArrayFromImage(label_img_total)
-    label_img_total_not_laa = (label_img_total_np > 0) & (label_img_total_np != 61)
+    label_img_total_not_laa = (label_img_total_np > 0) & (label_img_total_np != 61) & (label_img_total_np != 51)
     laa_resampled_np = np.bitwise_and(laa_resampled_np, np.bitwise_not(label_img_total_not_laa))
 
     laa_label_np = laa_resampled_np == 1
@@ -544,6 +544,106 @@ def refine_pulmonary_veins(params):
 
     return True
 
+
+def combine_low_and_high_res_aorta(params):
+    """
+    TotalSegmentator produces two aorta segmentations - one from the low-res model and one from the high-res model.
+    This function combines them into one segmentation.
+    It also employs an adaptive thresholding based on HU statistics to remove voxels clearly not part of the aorta blood pool.
+    """
+    input_file = params["input_file"]
+    ts_folder = params["ts_folder"]
+    output_folder = params["output_folder"]
+    stats_folder = params["stats_folder"]
+    segm_folder = params["segm_folder"]
+    quiet = params["quiet"]
+    verbose = params["verbose"]
+    write_log_file = params["write_log_file"]
+    hu_stats_name = f"{stats_folder}hu_statistics.json"
+    min_hu = params.get("minimum_aorta_hu_value", 150)
+
+    segm_name_total = f"{ts_folder}total.nii.gz"
+    segm_name_hc = f"{ts_folder}heartchambers_highres.nii.gz"
+    segm_out_name = f"{segm_folder}aorta_refined.nii.gz"
+    aorta_hires_segm_id = 6
+    aorta_lowres_segm_id = 52
+    do_morpho = True
+    # debug = True
+
+    if os.path.exists(segm_out_name):
+        if not quiet:
+            print(f"{segm_out_name} already exists - skipping")
+        return True
+
+    if verbose:
+        print(f"Computing {segm_out_name}")
+
+    if os.path.exists(hu_stats_name):
+        with open(hu_stats_name, "r") as f:
+            hu_stats = json.load(f)
+            la_q001_hu = hu_stats.get("la_q001", 100000)
+            pv_q001 = hu_stats.get("pv_q001", 100000)
+            aorta_q001 = hu_stats.get("aorta_q001", 100000)
+            min_hu = min(la_q001_hu, pv_q001, aorta_q001, min_hu)
+    if verbose:
+        print(f"Using minimum HU value of {min_hu} for aorta combination prediction")
+
+    label_img_total = io_utils.read_nifti_with_logging_cached(segm_name_total, verbose, quiet, write_log_file, output_folder)
+    if label_img_total is None:
+        return False
+
+    label_img_hc = io_utils.read_nifti_with_logging_cached(segm_name_hc, verbose, quiet, write_log_file, output_folder)
+    if label_img_hc is None:
+        return False
+
+    ct_img = io_utils.read_nifti_with_logging_cached(input_file, verbose, quiet, write_log_file, output_folder)
+    if ct_img is None:
+        return False
+
+    ct_img_np = sitk.GetArrayFromImage(ct_img)
+    label_img_total_np = sitk.GetArrayFromImage(label_img_total)
+    label_img_hc_np = sitk.GetArrayFromImage(label_img_hc)
+    aorta_hi_res = label_img_hc_np == aorta_hires_segm_id
+    aorta_low_res = label_img_total_np == aorta_lowres_segm_id
+
+    spacing = label_img_total.GetSpacing()
+
+    combined = np.bitwise_or(aorta_hi_res, aorta_low_res)
+    # make sure that HU values are above the minimum
+    combined = np.bitwise_and(combined, ct_img_np > min_hu)
+    refined_segm = combined
+    if do_morpho:
+        footprint = ball(radius=3)
+        refined_segm = binary_opening(combined, footprint)
+        footprint = ball(radius=3)
+        refined_segm = binary_closing(refined_segm, footprint)
+
+    # We want at least 5 cubic centimeter
+    min_comp_size_mm3 = 5000
+    min_comp_size_vox = int(min_comp_size_mm3 / (spacing[0] * spacing[1] * spacing[2]))
+    if verbose:
+        print(f"Finding aorta components with min_comp_size: {min_comp_size_vox} voxels = {min_comp_size_mm3:.1f} mm^3")
+
+    components = su.get_components_over_certain_size_as_individual_volumes(refined_segm, min_comp_size_vox, 2)
+    if components is None or len(components) == 0:
+        msg = f"Could not find any aorta components of size > {min_comp_size_mm3} mm3 in {segm_in_name}"
+        if not quiet:
+            print(msg)
+        if write_log_file:
+            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+        return False
+
+    refined_segm = components[0]
+    for idx in range(1, len(components)):
+        refined_segm = np.bitwise_or(refined_segm, components[idx])
+
+    label_img_out = sitk.GetImageFromArray(refined_segm.astype(np.uint8))
+    label_img_out.CopyInformation(label_img_total)
+    sitk.WriteImage(label_img_out, segm_out_name)
+
+    return True
+
+
 def do_cardiac_analysis(params):
     """
     Compute cardiac data
@@ -590,6 +690,8 @@ def do_cardiac_analysis(params):
         success = predict_laa_with_nudf(params)
     if success:
         success = refine_pulmonary_veins(params)
+    if success:
+        success = combine_low_and_high_res_aorta(params)
     # except Exception as e:
     #     msg = "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"
     #     msg += f"Exception during cardiac analysis of {scan_id}: {str(e)}\n"
