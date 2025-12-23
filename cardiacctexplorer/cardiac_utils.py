@@ -493,8 +493,10 @@ def refine_pulmonary_veins(params):
     hc_all_mask = label_img_hc_np > 0
 
     pv_refined_mask = np.copy(pv_mask)
-    n_iterations = 2
+    n_iterations = 3
     for iteration in range(n_iterations):
+        if iteration == 2:
+            dist_threshold = 2
         if verbose:
             print(f"Refining pulmonary veins - iteration {iteration + 1} of {n_iterations}")
         overlap_mask = su.edt_based_overlap(pv_refined_mask, la_mask, [spacing[2], spacing[1], spacing[0]],
