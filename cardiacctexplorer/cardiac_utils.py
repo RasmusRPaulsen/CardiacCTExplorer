@@ -752,6 +752,110 @@ def refine_coronary_artery_aorta_overlap(params):
 
 
 
+def add_segmentation_to_combined_segmentation(segm, combined, label_num, min_comp_size=1000, max_num_components=1):
+    segm_filter = np.bitwise_and(segm, combined == 0)
+    components = su.get_components_over_certain_size_as_individual_volumes(segm_filter, min_comp_size,
+                                                                            max_num_components)
+    if components is not None:
+        segm_filter = components[0]
+        for idx in range(1, len(components)):
+            segm_filter = np.bitwise_or(segm_filter, components[idx])
+        combined = np.maximum(combined, segm_filter * label_num)
+    return combined
+
+
+def get_label_names_and_numbers_as_text():
+    label_names = ("1 : Myocardium : The muscle tissue surrounding the left ventricle blood pool\n"
+                   "2 : LA : The left atrium blood pool\n"
+                   "3 : LV : The left ventricle blood pool including the papilary muscles and trabeculation\n"
+                   "4 : RA : The right atrium blood pool\n"
+                   "5 : RV : The right ventricle blood pool\n"
+                   "6 : Aorta : The aorta including the aortic cusp\n"
+                   "7 : PA : The pulmonary artery\n"
+                   "8 : LAA : The left atrial appendage\n"
+                   "9 : Coronary : The left and right coronary arteries\n"
+                   "10 : PV : The pulmonary veins\n")
+    return label_names
+
+def combine_segmentations_into_one_labelmap(params):
+    """
+    Combine segmentations into one labelmap
+    """
+    input_file = params["input_file"]
+    ts_folder = params["ts_folder"]
+    output_folder = params["output_folder"]
+    stats_folder = params["stats_folder"]
+    segm_folder = params["segm_folder"]
+    quiet = params["quiet"]
+    verbose = params["verbose"]
+    write_log_file = params["write_log_file"]
+    hu_stats_name = f"{stats_folder}hu_statistics.json"
+    min_hu = params.get("minimum_coronary_artery_hu_value", 20)
+
+    segm_name_hc = f"{ts_folder}heartchambers_highres.nii.gz"
+    segm_name_aorta = f"{segm_folder}aorta_refined.nii.gz"
+    segm_name_ca = f"{segm_folder}coronary_arteries_refined.nii.gz"
+    segm_name_pv = f"{segm_folder}pv_refined.nii.gz"
+    segm_name_laa = f"{segm_folder}laa_nudf_label.nii.gz"
+    segm_out_name = f"{segm_folder}cardiac_combined_segmentation.nii.gz"
+
+    if os.path.exists(segm_out_name):
+        if not quiet:
+            print(f"{segm_out_name} already exists - skipping")
+        return True
+
+    if verbose:
+        print(f"Computing {segm_out_name}")
+
+    label_img_hc = io_utils.read_nifti_with_logging_cached(segm_name_hc, verbose, quiet, write_log_file, output_folder)
+    if label_img_hc is None:
+        return False
+
+    label_img_aorta = io_utils.read_nifti_with_logging_cached(segm_name_aorta, verbose, quiet, write_log_file, output_folder)
+    if label_img_aorta is None:
+        return False
+
+    label_img_ca = io_utils.read_nifti_with_logging_cached(segm_name_ca, verbose, quiet, write_log_file, output_folder)
+    if label_img_ca is None:
+        return False
+
+    label_img_laa = io_utils.read_nifti_with_logging_cached(segm_name_laa, verbose, quiet, write_log_file, output_folder)
+    if label_img_laa is None:
+        return False
+
+    label_img_pv = io_utils.read_nifti_with_logging_cached(segm_name_pv, verbose, quiet, write_log_file, output_folder)
+    if label_img_pv is None:
+        return False
+
+    label_img_hc_np = sitk.GetArrayFromImage(label_img_hc).astype(np.uint8)
+    label_img_aorta_np = sitk.GetArrayFromImage(label_img_aorta).astype(np.uint8)
+    label_img_ca_np = sitk.GetArrayFromImage(label_img_ca).astype(np.uint8)
+    label_img_laa_np = sitk.GetArrayFromImage(label_img_laa).astype(np.uint8)
+    label_img_pv_np = sitk.GetArrayFromImage(label_img_pv).astype(np.uint8)
+
+    spacing = label_img_aorta.GetSpacing()
+    min_vox_size_100mm3 = int(100 / (spacing[0] * spacing[1] * spacing[2]))
+    min_vox_size_1000mm3 = int(1000 / (spacing[0] * spacing[1] * spacing[2]))
+    min_vox_size_5000mm3 = int(5000 / (spacing[0] * spacing[1] * spacing[2]))
+
+    combined_segm = np.zeros_like(label_img_hc_np, dtype=np.uint8)
+    combined_segm = add_segmentation_to_combined_segmentation(label_img_pv_np, combined_segm, 10, min_vox_size_1000mm3, 6)
+    combined_segm = add_segmentation_to_combined_segmentation(label_img_ca_np, combined_segm, 9, min_vox_size_100mm3, 6)
+    combined_segm = add_segmentation_to_combined_segmentation(label_img_aorta_np, combined_segm, 6, min_vox_size_5000mm3, 1)
+    # Finally add the heart chambers
+    for label_num in range(1, 8):
+        if label_num != 6: # Aorta already added
+            combined_segm = add_segmentation_to_combined_segmentation(label_img_hc_np == label_num, combined_segm,
+                                                                  label_num, min_vox_size_1000mm3,  1)
+    combined_segm = add_segmentation_to_combined_segmentation(label_img_laa_np, combined_segm, 8, min_vox_size_1000mm3, 1)
+
+    label_img_out = sitk.GetImageFromArray(combined_segm.astype(np.uint8))
+    label_img_out.CopyInformation(label_img_hc)
+    sitk.WriteImage(label_img_out, segm_out_name)
+
+    return True
+
+
 
 def do_cardiac_analysis(params):
     """
@@ -803,6 +907,8 @@ def do_cardiac_analysis(params):
         success = combine_low_and_high_res_aorta(params)
     if success:
         success = refine_coronary_artery_aorta_overlap(params)
+    if success:
+        success = combine_segmentations_into_one_labelmap(params)
     # except Exception as e:
     #     msg = "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"
     #     msg += f"Exception during cardiac analysis of {scan_id}: {str(e)}\n"

@@ -22,7 +22,7 @@ def write_message_to_log_file(base_dir, message, level="warning"):
     else:
         pdir = os.path.dirname(base_dir)
 
-    log_file = f"{pdir}/AortaExporer_log.txt"
+    log_file = f"{pdir}/CardiacCTExplorer_log.txt"
     if not os.path.isdir(os.path.dirname(log_file)):
         Path(os.path.dirname(log_file)).mkdir(parents=True, exist_ok=True)
 
