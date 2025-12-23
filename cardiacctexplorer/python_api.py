@@ -20,6 +20,7 @@ def get_default_parameters():
         "minimum_laa_hu_value": 200,
         "minimum_pv_hu_value": 200,
         "minimum_aorta_hu_value": 150,
+        "minimum_coronary_artery_hu_value": 20,
         "forced_aorta_min_hu_value": None,
         "forced_aorta_max_hu_value": None,
         "aorta_min_hu_value": 80,

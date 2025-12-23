@@ -644,6 +644,115 @@ def combine_low_and_high_res_aorta(params):
     return True
 
 
+def refine_coronary_artery_aorta_overlap(params):
+    """
+    Sometime segmentations of the coronary arteries does not meet the aorta segmentation properly,
+    especially the original ImageCAS manual segmentations have this issue.
+    This function tries to refine the coronary artery segmentation to include the part that is connected to the aorta.
+    """
+    input_file = params["input_file"]
+    ts_folder = params["ts_folder"]
+    output_folder = params["output_folder"]
+    stats_folder = params["stats_folder"]
+    segm_folder = params["segm_folder"]
+    quiet = params["quiet"]
+    verbose = params["verbose"]
+    write_log_file = params["write_log_file"]
+    hu_stats_name = f"{stats_folder}hu_statistics.json"
+    min_hu = params.get("minimum_coronary_artery_hu_value", 20)
+
+    segm_name_ca = f"{ts_folder}coronary_arteries.nii.gz"
+    segm_name_aorta = f"{segm_folder}aorta_refined.nii.gz"
+    segm_out_name = f"{segm_folder}coronary_arteries_refined.nii.gz"
+    dist_threshold = 3
+    do_morpho = True
+    # debug = True
+
+    if os.path.exists(segm_out_name):
+        if not quiet:
+            print(f"{segm_out_name} already exists - skipping")
+        return True
+
+    if verbose:
+        print(f"Computing {segm_out_name}")
+
+    if os.path.exists(hu_stats_name):
+        with open(hu_stats_name, "r") as f:
+            hu_stats = json.load(f)
+        la_q001_hu = hu_stats.get("la_q001", 100000)
+        pv_q001 = hu_stats.get("pv_q001", 100000)
+        min_hu = min(la_q001_hu, pv_q001, min_hu)
+    if verbose:
+        print(f"Using minimum HU value of {min_hu} for coronary artery refinement")
+
+    label_img_aorta = io_utils.read_nifti_with_logging_cached(segm_name_aorta, verbose, quiet, write_log_file, output_folder)
+    if label_img_aorta is None:
+        return False
+
+    label_img_ca = io_utils.read_nifti_with_logging_cached(segm_name_ca, verbose, quiet, write_log_file, output_folder)
+    if label_img_ca is None:
+        return False
+
+    ct_img = io_utils.read_nifti_with_logging_cached(input_file, verbose, quiet, write_log_file, output_folder)
+    if ct_img is None:
+        return False
+
+    ct_img_np = sitk.GetArrayFromImage(ct_img)
+    label_img_aorta_np = sitk.GetArrayFromImage(label_img_aorta)
+    label_img_ca_np = sitk.GetArrayFromImage(label_img_ca)
+    aorta_mask = label_img_aorta_np == 1
+    ca_mask = label_img_ca_np == 1
+    spacing = label_img_aorta.GetSpacing()
+
+    overlap_mask = su.edt_based_overlap(aorta_mask, ca_mask, [spacing[2], spacing[1], spacing[0]],
+                                        dist_threshold)
+
+    new_refined_mask = np.bitwise_or(ca_mask, overlap_mask)
+
+    # Remove aorta from mask to  avoid leakage
+    new_refined_mask = np.bitwise_and(new_refined_mask, np.bitwise_not(aorta_mask))
+
+    # Keep only the part of pv that has HU above min_hu
+    new_refined_mask = np.bitwise_and(new_refined_mask, ct_img_np > min_hu)
+
+    if do_morpho:
+        radius = 1
+        footprint = ball(radius=radius)
+        new_refined_mask = binary_opening(new_refined_mask, footprint)
+        footprint = ball(radius=3)
+        new_refined_mask = binary_closing(new_refined_mask, footprint)
+
+    min_comp_size_mm = 100  # in mm3
+    min_comp_size_vox = int(min_comp_size_mm / (spacing[0] * spacing[1] * spacing[2]))
+
+    # We allow up to 6 components since coronary arteries can be disconnected
+    # (not anatomically correct, but can happen in segmentations)
+    components = su.get_components_over_certain_size_as_individual_volumes(new_refined_mask, min_comp_size_vox, 6)
+    if components is None:
+        msg = f"Could not find any pv components of size > {min_comp_size_mm} mm3 for refined coronary artery segmentation"
+        if not quiet:
+            print(msg)
+        if write_log_file:
+            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+        return False
+
+    if verbose:
+        print(f"Found {len(components)} coronary artery components after refinement")
+    refined_segm = components[0]
+    for idx in range(1, len(components)):
+        refined_segm = np.bitwise_or(refined_segm, components[idx])
+
+    ca_refined_mask = np.copy(refined_segm)
+
+    label_img_out = sitk.GetImageFromArray(ca_refined_mask.astype(np.uint8))
+    label_img_out.CopyInformation(label_img_aorta)
+    sitk.WriteImage(label_img_out, segm_out_name)
+
+    return True
+
+
+
+
 def do_cardiac_analysis(params):
     """
     Compute cardiac data
@@ -692,6 +801,8 @@ def do_cardiac_analysis(params):
         success = refine_pulmonary_veins(params)
     if success:
         success = combine_low_and_high_res_aorta(params)
+    if success:
+        success = refine_coronary_artery_aorta_overlap(params)
     # except Exception as e:
     #     msg = "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"
     #     msg += f"Exception during cardiac analysis of {scan_id}: {str(e)}\n"

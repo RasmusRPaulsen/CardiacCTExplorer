@@ -1,11 +1,7 @@
 import os
 from totalsegmentator.python_api import totalsegmentator
-from pathlib import Path
 import time
 import multiprocessing as mp
-# from aortaexplorer.general_utils import (write_message_to_log_file, clear_last_error_message, get_pure_scan_file_name,
-#                                          display_time)
-# from aortaexplorer.io_utils import read_nifti_with_logging
 import cardiacctexplorer.general_utils as gu
 import cardiacctexplorer.io_utils as io_utils
 import SimpleITK as sitk
@@ -20,7 +16,6 @@ def do_totalsegmentator(params):
     input_file = params["input_file"]
     ts_folder = params["ts_folder"]
     output_folder = params["output_folder"]
-    scan_id = params["pure_id"]
     quiet = params["quiet"]
     verbose = params["verbose"]
     write_log_file = params["write_log_file"]
@@ -41,6 +36,7 @@ def do_totalsegmentator(params):
 
     total_out_name = f"{ts_folder}total.nii.gz"
     hc_out_name = f"{ts_folder}heartchambers_highres.nii.gz"
+    ca_out_name = f"{ts_folder}coronary_arteries.nii.gz"
 
     # Nr of threads for resampling
     nr_thr_resamp = 1
@@ -110,31 +106,31 @@ def do_totalsegmentator(params):
             )
         return False
 
-    if not os.path.exists(hc_out_name):
-        # Check if the heart is present in the segmentation
-        # Square millimeters - one square centimeter
-        volume_threshold = 1000
-        heart_label = 51
+    # Check if the heart is present in the total segmentation masks
+    # Square millimeters - one square centimeter
+    heart_present_in_total = False
+    volume_threshold = 1000
+    heart_label = 51
+    label_img = io_utils.read_nifti_with_logging(
+        total_out_name, verbose, quiet, write_log_file, output_folder
+    )
+    # Something is really wrong if total segmentation cannot be read
+    if label_img is None:
+        return False
+    spacing = label_img.GetSpacing()
+    vox_size = spacing[0] * spacing[1] * spacing[2]
+    label_img_np = sitk.GetArrayFromImage(label_img)
+    mask_np = label_img_np == heart_label
+    sum_pix = np.sum(mask_np)
+    if sum_pix * vox_size < volume_threshold:
+        msg = (f"Heart segmentation volume {sum_pix * vox_size:.1f} mm3 is below threshold {volume_threshold} mm3 "
+               f"for {input_file} - skipping high-res heart and coronary artery segmentation!")
+        if verbose:
+            print(msg)
+    else:
+        heart_present_in_total = True
 
-        label_img = io_utils.read_nifti_with_logging(
-            total_out_name, verbose, quiet, write_log_file, output_folder
-        )
-        if label_img is None:
-            return False
-
-        spacing = label_img.GetSpacing()
-        vox_size = spacing[0] * spacing[1] * spacing[2]
-        label_img_np = sitk.GetArrayFromImage(label_img)
-        mask_np = label_img_np == heart_label
-        sum_pix = np.sum(mask_np)
-        if sum_pix * vox_size < volume_threshold:
-            msg = f"Heart segmentation volume {sum_pix * vox_size:.1f} mm3 is below threshold {volume_threshold} mm3 for {input_file} - skipping high-res heart segmentation!"
-            if not quiet:
-                print(msg)
-            # if write_log_file:
-            #     write_message_to_log_file(base_dir=output_folder, message=msg, level="info")
-            return True
-
+    if heart_present_in_total and not os.path.exists(hc_out_name):
         task = "heartchambers_highres"
         try:
             totalsegmentator(
@@ -178,6 +174,75 @@ def do_totalsegmentator(params):
                 )
     elif verbose:
         print(f"{hc_out_name} already exists - skipping!")
+
+    if heart_present_in_total and not os.path.exists(ca_out_name):
+        # Check if the heart is present in the segmentation
+        # Square millimeters - one square centimeter
+        volume_threshold = 1000
+        heart_label = 51
+
+        label_img = io_utils.read_nifti_with_logging(
+            total_out_name, verbose, quiet, write_log_file, output_folder
+        )
+        if label_img is None:
+            return False
+
+        spacing = label_img.GetSpacing()
+        vox_size = spacing[0] * spacing[1] * spacing[2]
+        label_img_np = sitk.GetArrayFromImage(label_img)
+        mask_np = label_img_np == heart_label
+        sum_pix = np.sum(mask_np)
+        if sum_pix * vox_size < volume_threshold:
+            msg = f"Heart segmentation volume {sum_pix * vox_size:.1f} mm3 is below threshold {volume_threshold} mm3 for {input_file} - skipping high-res heart segmentation!"
+            if not quiet:
+                print(msg)
+            # if write_log_file:
+            #     write_message_to_log_file(base_dir=output_folder, message=msg, level="info")
+            return True
+
+        task = "coronary_arteries"
+        try:
+            totalsegmentator(
+                input_file,
+                ca_out_name,
+                multi_label,
+                nr_thr_resamp,
+                nr_thr_saving,
+                fast_model,
+                device=device,
+                nora_tag="None",
+                preview=False,
+                task=task,
+                roi_subset=None,
+                statistics=calc_statistics,
+                radiomics=calc_radiomics,
+                crop_path=None,
+                body_seg=body_seg,
+                force_split=force_split,
+                output_type="nifti",
+                quiet=run_quit,
+                verbose=verbose,
+                test=False,
+            )
+        except Exception as e:
+            msg = f"TotalSegmentator (coronary_arteries) failed on {input_file} with exception: {str(e)}"
+            if not quiet:
+                print(msg)
+            if write_log_file:
+                gu.write_message_to_log_file(
+                    base_dir=output_folder, message=msg, level="error"
+                )
+            return False
+        if not os.path.exists(ca_out_name):
+            msg = f"Could not find {ca_out_name} after TotalSegmentator run"
+            if not quiet:
+                print(msg)
+            if write_log_file:
+                gu.write_message_to_log_file(
+                    base_dir=output_folder, message=msg, level="warning"
+                )
+    elif verbose:
+        print(f"{ca_out_name} already exists - skipping!")
 
     return True
 
@@ -231,8 +296,17 @@ def compute_totalsegmentator_segmentations(in_files, output_folder, params):
         params = gu.set_and_create_folders(fname, output_folder, params)
         ts_folder = params["ts_folder"]
         total_out_name = f"{ts_folder}total.nii.gz"
-        if not os.path.exists(total_out_name):
+        hc_out_name = f"{ts_folder}heartchambers_highres.nii.gz"
+        ca_out_name = f"{ts_folder}coronary_arteries.nii.gz"
+
+        # TODO: Perhaps only necessary to check the total task
+        check_names = [total_out_name, hc_out_name, ca_out_name]
+        all_exist = all([os.path.exists(cname) for cname in check_names])
+        if not all_exist:
             files_to_process.append(fname)
+        #
+        # if not os.path.exists(total_out_name):
+        #     files_to_process.append(fname)
 
     if verbose:
         print(f"Found {len(files_to_process)} files to process with TotalSegmentator out of {len(in_files)} files")
