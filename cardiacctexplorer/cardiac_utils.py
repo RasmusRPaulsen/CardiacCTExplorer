@@ -859,6 +859,22 @@ def combine_segmentations_into_one_labelmap(params):
 
     return True
 
+def generate_cardiac_mask(label_img, mask_out_name):
+    """
+    Generate a binary mask from the cardiac segmentation label image
+    """
+    # labels_to_use = [1, 2, 3, 4, 5, 8, 9]
+    labels_to_use = [1, 2, 3, 8, 9]
+    label_img_np = sitk.GetArrayFromImage(label_img)
+    cardiac_mask_np = np.isin(label_img_np, labels_to_use).astype(np.uint8)
+    spacing = label_img.GetSpacing()
+    dilation_mm = 2
+    dilated_mask = su.edt_based_dilation(cardiac_mask_np, spacing=[spacing[2], spacing[1], spacing[0]],
+                                         radius=dilation_mm)
+    cardiac_mask_img = sitk.GetImageFromArray(dilated_mask.astype(np.uint8))
+    cardiac_mask_img.CopyInformation(label_img)
+    sitk.WriteImage(cardiac_mask_img, mask_out_name)
+
 
 def visualize_cardiac_data(params):
     """
@@ -880,6 +896,7 @@ def visualize_cardiac_data(params):
     segm_name_ca = f"{segm_folder}coronary_arteries_refined.nii.gz"
     segm_name_pv = f"{segm_folder}pv_refined.nii.gz"
     segm_name_laa = f"{segm_folder}laa_nudf_label.nii.gz"
+    cardiac_mask_out = f"{segm_folder}cardiac_mask.nii.gz"
     segm_name_in = f"{segm_folder}cardiac_combined_segmentation.nii.gz"
 
     mask_with_cardiac_segmentation = True
@@ -902,10 +919,16 @@ def visualize_cardiac_data(params):
     if ct_img is None:
         return False
 
+    mask_image = None
+    if mask_with_cardiac_segmentation:
+        mask_image = cardiac_mask_out
+        #if not os.path.exists(cardiac_mask_out):
+        generate_cardiac_mask(label_img, cardiac_mask_out)
+
     render_to_file = False
     # TODO: Mask image with mask
     render_cardiac = RenderCardiacData(win_size, ct_img, label_img, verbose=verbose, quiet=quiet, render_to_file=render_to_file)
-    render_cardiac.set_sitk_image_file(input_file)
+    render_cardiac.set_sitk_image_file(input_file, mask_image)
     if render_to_file:
         render_cardiac.render_to_file(vis_file)
     else:

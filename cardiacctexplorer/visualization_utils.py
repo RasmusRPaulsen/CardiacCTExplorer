@@ -185,7 +185,7 @@ class RenderTotalSegmentatorData:
         self.ren_win.AddRenderer(self.ren_volume)
 
         c = volume.GetCenter()
-        view_offsets = [500, -1000, 0]
+        view_offsets = [-500, -1000, 0]
         # Hack to handle direction matrices
         view_offsets[0] *= dir_val
         view_offsets[1] *= dir_val
@@ -375,6 +375,7 @@ class RenderCardiacData(RenderTotalSegmentatorData):
         self.generate_actors_from_segment_itk_labelmap(label_img, 2,"DarkSlateBlue", 1.0, smooth="medium")
         self.generate_actors_from_segment_itk_labelmap(label_img, 3,"DarkRed", 1.0, smooth="medium")
         self.generate_actors_from_segment_itk_labelmap(label_img, 8,"DarkOliveGreen", 1.0, smooth="medium")
+        self.generate_actors_from_segment_itk_labelmap(label_img, 9,"LightCoral", 0.4, smooth="medium")
 
         # segm_name_debug = "C:/data/CardiacCTExplorer/ImageCAS-output/3.img/segmentations/pv_refined.nii.gz"
         # self.generate_actors_from_segment_file_name(segm_name_debug, "Crimson", 0.8)
