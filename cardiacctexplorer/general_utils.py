@@ -74,8 +74,10 @@ def set_and_create_folders(in_file, output_folder, params):
     params["segm_folder"] = segm_folder
     crops_folder = f"{output_folder}{pure_id}/crops/"
     params["crops_folder"] = crops_folder
+    vis_folder = f"{output_folder}{pure_id}/visualizations/"
+    params["vis_folder"] = vis_folder
 
-    folders = [output_folder, ts_folder, stats_folder, segm_folder, crops_folder]
+    folders = [output_folder, ts_folder, stats_folder, segm_folder, crops_folder, vis_folder]
     for folder in folders:
         Path(folder).mkdir(parents=True, exist_ok=True)
 

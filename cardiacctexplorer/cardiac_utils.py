@@ -10,6 +10,7 @@ import cardiacctexplorer.general_utils as gu
 import cardiacctexplorer.io_utils as io_utils
 import cardiacctexplorer.segmentation_utils as su
 from cardiacctexplorer.nudf_predictor import NUDFPredictor
+from cardiacctexplorer.visualization_utils import RenderCardiacData
 import SimpleITK as sitk
 import numpy as np
 from skimage.morphology import skeletonize, binary_dilation, binary_closing, binary_opening, ball
@@ -779,6 +780,7 @@ def get_label_names_and_numbers_as_text():
                    "10 : PV : The pulmonary veins\n")
     return label_names
 
+
 def combine_segmentations_into_one_labelmap(params):
     """
     Combine segmentations into one labelmap
@@ -858,6 +860,58 @@ def combine_segmentations_into_one_labelmap(params):
     return True
 
 
+def visualize_cardiac_data(params):
+    """
+    """
+    input_file = params["input_file"]
+    ts_folder = params["ts_folder"]
+    output_folder = params["output_folder"]
+    stats_folder = params["stats_folder"]
+    segm_folder = params["segm_folder"]
+    vis_folder = params["vis_folder"]
+    quiet = params["quiet"]
+    verbose = params["verbose"]
+    write_log_file = params["write_log_file"]
+    hu_stats_name = f"{stats_folder}hu_statistics.json"
+    min_hu = params.get("minimum_coronary_artery_hu_value", 20)
+
+    segm_name_hc = f"{ts_folder}heartchambers_highres.nii.gz"
+    segm_name_aorta = f"{segm_folder}aorta_refined.nii.gz"
+    segm_name_ca = f"{segm_folder}coronary_arteries_refined.nii.gz"
+    segm_name_pv = f"{segm_folder}pv_refined.nii.gz"
+    segm_name_laa = f"{segm_folder}laa_nudf_label.nii.gz"
+    segm_name_in = f"{segm_folder}cardiac_combined_segmentation.nii.gz"
+
+    mask_with_cardiac_segmentation = True
+    vis_file = f"{vis_folder}cardiac_visualization.png"
+    win_size = params.get("rendering_window_size", [1600, 1200])
+
+    # if os.path.exists(vis_file):
+    #     if verbose:
+    #         print(f"{vis_file} already exists - skipping")
+    #     return True
+
+    if verbose:
+        print(f"Creating visualization {vis_file}")
+
+    label_img = io_utils.read_nifti_with_logging_cached(segm_name_in, verbose, quiet, write_log_file, output_folder)
+    if label_img is None:
+        return False
+
+    ct_img = io_utils.read_nifti_with_logging_cached(input_file, verbose, quiet, write_log_file, output_folder)
+    if ct_img is None:
+        return False
+
+    render_to_file = False
+    # TODO: Mask image with mask
+    render_cardiac = RenderCardiacData(win_size, ct_img, label_img, verbose=verbose, quiet=quiet, render_to_file=render_to_file)
+    render_cardiac.set_sitk_image_file(input_file)
+    if render_to_file:
+        render_cardiac.render_to_file(vis_file)
+    else:
+        render_cardiac.render_interactive()
+
+    return True
 
 def do_cardiac_analysis(params):
     """
@@ -911,6 +965,8 @@ def do_cardiac_analysis(params):
         success = refine_coronary_artery_aorta_overlap(params)
     if success:
         success = combine_segmentations_into_one_labelmap(params)
+    if success:
+        success = visualize_cardiac_data(params)
     # except Exception as e:
     #     msg = "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"
     #     msg += f"Exception during cardiac analysis of {scan_id}: {str(e)}\n"
