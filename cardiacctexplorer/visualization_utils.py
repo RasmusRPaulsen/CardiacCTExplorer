@@ -371,12 +371,13 @@ class RenderCardiacData(RenderTotalSegmentatorData):
         if tool_version is not None and tool_version != "":
             self.message_text += f"CardiacCTVersion version: {tool_version}\n"
 
-        self.generate_actors_from_segment_itk_labelmap(label_img, 8,"Crimson", 0.5, smooth="light")
-        self.generate_actors_from_segment_itk_labelmap(label_img, 1,"Blue", 1.0)
-        self.generate_actors_from_segment_itk_labelmap(label_img, 2,"Yellow", 1.0)
+        self.generate_actors_from_segment_itk_labelmap(label_img, 1,"LightBlue", 0.2)
+        self.generate_actors_from_segment_itk_labelmap(label_img, 2,"DarkSlateBlue", 1.0, smooth="medium")
+        self.generate_actors_from_segment_itk_labelmap(label_img, 3,"DarkRed", 1.0, smooth="medium")
+        self.generate_actors_from_segment_itk_labelmap(label_img, 8,"DarkOliveGreen", 1.0, smooth="medium")
 
-        segm_name_debug = "C:/data/CardiacCTExplorer/ImageCAS-output/3.img/segmentations/pv_refined.nii.gz"
-        self.generate_actors_from_segment_file_name(segm_name_debug, "Crimson", 0.8)
+        # segm_name_debug = "C:/data/CardiacCTExplorer/ImageCAS-output/3.img/segmentations/pv_refined.nii.gz"
+        # self.generate_actors_from_segment_file_name(segm_name_debug, "Crimson", 0.8)
 
         # n_aorta_parts = 1
         # parts_stats = read_json_file(f"{stats_folder}aorta_parts.json")
@@ -467,7 +468,7 @@ class RenderCardiacData(RenderTotalSegmentatorData):
         # self.viewport_straight_2 = [0.60, 0.2, 0.70, 1.0]
         self.viewport_text = [0.7, 0.0, 1.0, 0.40]
         # self.viewport_volume = [0.7, 0.20, 1.0, 0.40]
-        self.viewport_volume = [0.35, 0.5, 0.70, 0.7]
+        self.viewport_volume = [0.35, 0.5, 0.70, 1.0]
         self.viewport_plot = [0.0, 0.0, 0.0, 0.0]
         self.viewport_slice_1 = [0.7, 0.40, 1.0, 0.60]
         self.viewport_slice_2 = [0.7, 0.60, 1.0, 0.80]
@@ -486,20 +487,21 @@ class RenderCardiacData(RenderTotalSegmentatorData):
 
         self.setup_renderers()
 
+    # https://en.wikipedia.org/wiki/Web_colors
     def setup_renderers(self):
         self.ren_3d_1 = vtk.vtkRenderer()
         self.ren_3d_1.SetViewport(self.viewport_3d_1)
-        self.ren_3d_1.SetBackground(vtk.vtkNamedColors().GetColor3d("Plum"))
+        self.ren_3d_1.SetBackground(vtk.vtkNamedColors().GetColor3d("LightSteelBlue"))
 
         self.ren_win.AddRenderer(self.ren_3d_1)
         self.ren_3d_2 = vtk.vtkRenderer()
         self.ren_3d_2.SetViewport(self.viewport_3d_2)
-        self.ren_3d_2.SetBackground(vtk.vtkNamedColors().GetColor3d("Orange"))
+        self.ren_3d_2.SetBackground(vtk.vtkNamedColors().GetColor3d("DimGray"))
 
         self.ren_win.AddRenderer(self.ren_3d_2)
         self.ren_3d_3 = vtk.vtkRenderer()
         self.ren_3d_3.SetViewport(self.viewport_3d_3)
-        self.ren_3d_3.SetBackground(vtk.vtkNamedColors().GetColor3d("Green"))
+        self.ren_3d_3.SetBackground(vtk.vtkNamedColors().GetColor3d("Azure"))
 
         self.ren_win.AddRenderer(self.ren_3d_3)
         # self.ren_3d_4 = vtk.vtkRenderer()
@@ -512,26 +514,26 @@ class RenderCardiacData(RenderTotalSegmentatorData):
             self.ren_3d_3.AddActor(actor)
             # self.ren_3d_4.AddActor(actor)
 
-        # actor_bounds = self.ren_3d_1.ComputeVisiblePropBounds()
-        # c = [(actor_bounds[0] + actor_bounds[1]) / 2, (actor_bounds[2] + actor_bounds[3]) / 2,
-        #      (actor_bounds[4] + actor_bounds[5]) / 2]
-        #
-        # self.ren_3d_1.GetActiveCamera().SetParallelProjection(1)
-        # self.ren_3d_1.GetActiveCamera().SetViewUp(0, 0, 1)
-        # self.ren_3d_1.GetActiveCamera().SetPosition(c[0], c[1] - 400, c[2])
-        # self.ren_3d_1.GetActiveCamera().SetFocalPoint(c[0], c[1], c[2])
+        actor_bounds = self.ren_3d_1.ComputeVisiblePropBounds()
+        c = [(actor_bounds[0] + actor_bounds[1]) / 2, (actor_bounds[2] + actor_bounds[3]) / 2,
+             (actor_bounds[4] + actor_bounds[5]) / 2]
+
+        self.ren_3d_1.GetActiveCamera().SetParallelProjection(1)
+        self.ren_3d_1.GetActiveCamera().SetViewUp(0, 0, 1)
+        self.ren_3d_1.GetActiveCamera().SetPosition(c[0], c[1] - 400, c[2])
+        self.ren_3d_1.GetActiveCamera().SetFocalPoint(c[0], c[1], c[2])
         self.ren_3d_1.ResetCameraScreenSpace()
 
-        # self.ren_3d_2.GetActiveCamera().SetParallelProjection(1)
-        # self.ren_3d_2.GetActiveCamera().SetFocalPoint(c[0], c[1], c[2])
-        # self.ren_3d_2.GetActiveCamera().SetViewUp(0, 0, 1)
-        # self.ren_3d_2.GetActiveCamera().SetPosition(c[0] + 400, c[1], c[2])
+        self.ren_3d_2.GetActiveCamera().SetParallelProjection(1)
+        self.ren_3d_2.GetActiveCamera().SetFocalPoint(c[0], c[1], c[2])
+        self.ren_3d_2.GetActiveCamera().SetViewUp(0, 0, 1)
+        self.ren_3d_2.GetActiveCamera().SetPosition(c[0] + 400, c[1], c[2])
         self.ren_3d_2.ResetCameraScreenSpace()
 
-        # self.ren_3d_3.GetActiveCamera().SetParallelProjection(1)
-        # self.ren_3d_3.GetActiveCamera().SetFocalPoint(c[0], c[1], c[2])
-        # self.ren_3d_3.GetActiveCamera().SetViewUp(0, 0, 1)
-        # self.ren_3d_3.GetActiveCamera().SetPosition(c[0], c[1] + 400, c[2])
+        self.ren_3d_3.GetActiveCamera().SetParallelProjection(1)
+        self.ren_3d_3.GetActiveCamera().SetFocalPoint(c[0], c[1], c[2])
+        self.ren_3d_3.GetActiveCamera().SetViewUp(0, 0, 1)
+        self.ren_3d_3.GetActiveCamera().SetPosition(c[0], c[1] + 400, c[2])
         self.ren_3d_3.ResetCameraScreenSpace()
 
         # self.ren_3d_4.GetActiveCamera().SetParallelProjection(1)
