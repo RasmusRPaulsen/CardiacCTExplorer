@@ -185,7 +185,7 @@ class RenderTotalSegmentatorData:
         self.ren_win.AddRenderer(self.ren_volume)
 
         c = volume.GetCenter()
-        view_offsets = [-500, -1000, 0]
+        view_offsets = [500, 1000, 0]
         # Hack to handle direction matrices
         view_offsets[0] *= dir_val
         view_offsets[1] *= dir_val
@@ -197,7 +197,7 @@ class RenderTotalSegmentatorData:
         self.ren_volume.GetActiveCamera().SetFocalPoint(c[0], c[1], c[2])
         # ren_volume.ResetCamera()
         self.ren_volume.ResetCameraScreenSpace()
-        self.ren_volume.GetActiveCamera().Zoom(1.2)
+        self.ren_volume.GetActiveCamera().Zoom(1.5)
 
     @staticmethod
     def add_text_to_render(
