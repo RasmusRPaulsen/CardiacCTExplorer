@@ -558,15 +558,62 @@ class RenderCardiacData(RenderTotalSegmentatorData):
         # self.ren_plot.SetViewport(self.viewport_plot)
 
         # Renderer for slice
-        # self.ren_slice_1 = vtk.vtkRenderer()
-        # self.ren_win.AddRenderer(self.ren_slice_1)
-        # self.ren_slice_1.SetViewport(self.viewport_slice_1)
-        # self.ren_slice_2 = vtk.vtkRenderer()
-        # self.ren_win.AddRenderer(self.ren_slice_2)
-        # self.ren_slice_2.SetViewport(self.viewport_slice_2)
-        # self.ren_slice_3 = vtk.vtkRenderer()
-        # self.ren_win.AddRenderer(self.ren_slice_3)
-        # self.ren_slice_3.SetViewport(self.viewport_slice_3)
+        self.ren_slice_1 = vtk.vtkRenderer()
+        self.ren_win.AddRenderer(self.ren_slice_1)
+        self.ren_slice_1.SetViewport(self.viewport_slice_1)
+        self.ren_slice_2 = vtk.vtkRenderer()
+        self.ren_win.AddRenderer(self.ren_slice_2)
+        self.ren_slice_2.SetViewport(self.viewport_slice_2)
+        self.ren_slice_3 = vtk.vtkRenderer()
+        self.ren_win.AddRenderer(self.ren_slice_3)
+        self.ren_slice_3.SetViewport(self.viewport_slice_3)
+
+
+    def set_precomputed_slice(self, base_name):
+        """
+        Here the slices are precomputed as png file
+        """
+        plane_file_1 = f'{base_name}_slice_1_rgb_crop.png'
+        plane_file_2 = f'{base_name}_slice_2_rgb_crop.png'
+        plane_file_3 = f'{base_name}_slice_3_rgb_crop.png'
+
+        png_reader_1 = vtk.vtkPNGReader()
+        if os.path.exists(plane_file_1) and png_reader_1.CanReadFile(plane_file_1):
+            png_reader_1.SetFileName(plane_file_1)
+            png_reader_1.Update()
+
+            image_viewer = vtk.vtkImageViewer2()
+            image_viewer.SetInputConnection(png_reader_1.GetOutputPort())
+            image_viewer.SetRenderWindow(self.ren_win)
+            image_viewer.SetRenderer(self.ren_slice_1)
+            self.ren_slice_1.GetActiveCamera().ParallelProjectionOn()
+            self.ren_slice_1.ResetCameraScreenSpace()
+            
+        png_reader_2 = vtk.vtkPNGReader()
+        if os.path.exists(plane_file_2) and png_reader_2.CanReadFile(plane_file_2):
+            png_reader_2.SetFileName(plane_file_2)
+            png_reader_2.Update()
+
+            image_viewer = vtk.vtkImageViewer2()
+            image_viewer.SetInputConnection(png_reader_2.GetOutputPort())
+            image_viewer.SetRenderWindow(self.ren_win)
+            image_viewer.SetRenderer(self.ren_slice_2)
+            self.ren_slice_2.GetActiveCamera().ParallelProjectionOn()
+            self.ren_slice_2.ResetCameraScreenSpace()
+
+        png_reader_3 = vtk.vtkPNGReader()
+        if os.path.exists(plane_file_3) and png_reader_3.CanReadFile(plane_file_3):
+            png_reader_3.SetFileName(plane_file_3)
+            png_reader_3.Update()
+
+            image_viewer = vtk.vtkImageViewer2()
+            image_viewer.SetInputConnection(png_reader_3.GetOutputPort())
+            image_viewer.SetRenderWindow(self.ren_win)
+            image_viewer.SetRenderer(self.ren_slice_3)
+            self.ren_slice_3.GetActiveCamera().ParallelProjectionOn()
+            self.ren_slice_3.ResetCameraScreenSpace()
+
+
 
     def set_aorta_statistics(self, stats_folder):
         stats_file = f"{stats_folder}aorta_statistics.json"
@@ -814,42 +861,42 @@ class RenderCardiacData(RenderTotalSegmentatorData):
                 self.ren_3d_1.AddActor(actor_cut)
                 self.ren_3d_2.AddActor(actor_cut)
 
-    def set_precomputed_slice(self, cl_folder):
-        """
-        Here the slices are precomputed as png files
-        """
-        plane_file = f"{cl_folder}combined_cuts.png"
-
-        png_reader = vtk.vtkPNGReader()
-        if not png_reader.CanReadFile(plane_file):
-            print(f"Can not read {plane_file}")
-            return
-        png_reader.SetFileName(plane_file)
-        png_reader.Update()
-
-        # https://www.weiy.city/2021/12/scale-image-displayed-by-vtkactor2d-object/
-        # extent = png_reader.GetOutput().GetExtent()
-        # origin = png_reader.GetOutput().GetOrigin()
-        # spacing = png_reader.GetOutput().GetSpacing()
-        # size = [extent[1], extent[3]]
-        # new_size = [5 * size[0], 5 * size[1], 1]
-        # interpolator = vtk.vtkImageSincInterpolator()
-        # resizer = vtk.vtkImageResize()
-        # resizer.SetInputConnection(png_reader.GetOutputPort())
-        # resizer.SetInterpolator(interpolator)
-        # resizer.SetOutputDimensions(new_size)
-        # resizer.InterpolateOn()
-        # resizer.Update()
-
-        image_viewer = vtk.vtkImageViewer2()
-        # image_viewer.SetInputConnection(resizer.GetOutputPort())
-        image_viewer.SetInputConnection(png_reader.GetOutputPort())
-        image_viewer.SetRenderWindow(self.ren_win)
-        image_viewer.SetRenderer(self.ren_slice)
-
-        image_viewer.Render()
-        self.ren_slice.GetActiveCamera().ParallelProjectionOn()
-        self.ren_slice.ResetCameraScreenSpace()
+    # def set_precomputed_slice(self, cl_folder):
+    #     """
+    #     Here the slices are precomputed as png files
+    #     """
+    #     plane_file = f"{cl_folder}combined_cuts.png"
+    #
+    #     png_reader = vtk.vtkPNGReader()
+    #     if not png_reader.CanReadFile(plane_file):
+    #         print(f"Can not read {plane_file}")
+    #         return
+    #     png_reader.SetFileName(plane_file)
+    #     png_reader.Update()
+    #
+    #     # https://www.weiy.city/2021/12/scale-image-displayed-by-vtkactor2d-object/
+    #     # extent = png_reader.GetOutput().GetExtent()
+    #     # origin = png_reader.GetOutput().GetOrigin()
+    #     # spacing = png_reader.GetOutput().GetSpacing()
+    #     # size = [extent[1], extent[3]]
+    #     # new_size = [5 * size[0], 5 * size[1], 1]
+    #     # interpolator = vtk.vtkImageSincInterpolator()
+    #     # resizer = vtk.vtkImageResize()
+    #     # resizer.SetInputConnection(png_reader.GetOutputPort())
+    #     # resizer.SetInterpolator(interpolator)
+    #     # resizer.SetOutputDimensions(new_size)
+    #     # resizer.InterpolateOn()
+    #     # resizer.Update()
+    #
+    #     image_viewer = vtk.vtkImageViewer2()
+    #     # image_viewer.SetInputConnection(resizer.GetOutputPort())
+    #     image_viewer.SetInputConnection(png_reader.GetOutputPort())
+    #     image_viewer.SetRenderWindow(self.ren_win)
+    #     image_viewer.SetRenderer(self.ren_slice)
+    #
+    #     image_viewer.Render()
+    #     self.ren_slice.GetActiveCamera().ParallelProjectionOn()
+    #     self.ren_slice.ResetCameraScreenSpace()
 
     def set_cut_statistics(self, cl_folder):
         cl_dir = cl_folder

@@ -873,17 +873,17 @@ def create_image_slices_from_segmentation(params):
     write_log_file = params["write_log_file"]
     hu_stats_name = f"{stats_folder}hu_statistics.json"
     segm_in_name = f"{segm_folder}cardiac_combined_segmentation.nii.gz"
-    base_name_out = f"{segm_folder}cardiac_segmentation_slice_"
+    base_name_out = f"{segm_folder}cardiac_segmentation"
+    check_name = f"{base_name_out}_slice_1_rgb_crop.png"
     segm_id = 8
 
-    #
-    # if os.path.exists(segm_out_name):
-    #     if not quiet:
-    #         print(f"{segm_out_name} already exists - skipping")
-    #     return True
+    if os.path.exists(check_name):
+        if not quiet:
+            print(f"{check_name} already exists - skipping")
+        return True
 
-    # if verbose:
-    #     print(f"Computing {segm_out_name}")
+    if verbose:
+        print(f"Computing orthonogal slices for segmentation id {segm_id} into {base_name_out}")
 
     label_img = io_utils.read_nifti_with_logging_cached(segm_in_name, verbose, quiet, write_log_file, output_folder)
     if label_img is None:
@@ -955,6 +955,8 @@ def visualize_cardiac_data(params):
     segm_name_laa = f"{segm_folder}laa_nudf_label.nii.gz"
     cardiac_mask_out = f"{segm_folder}cardiac_mask.nii.gz"
     segm_name_in = f"{segm_folder}cardiac_combined_segmentation.nii.gz"
+    image_base_name_in = f"{segm_folder}cardiac_segmentation_slice_"
+
 
     mask_with_cardiac_segmentation = True
     vis_file = f"{vis_folder}cardiac_visualization.png"
@@ -985,6 +987,7 @@ def visualize_cardiac_data(params):
     render_to_file = True
     render_cardiac = RenderCardiacData(win_size, ct_img, label_img, verbose=verbose, quiet=quiet, render_to_file=render_to_file)
     render_cardiac.set_sitk_image_file(input_file, mask_image)
+    render_cardiac.set_precomputed_slice(image_base_name_in)
     if render_to_file:
         render_cardiac.render_to_file(vis_file)
     else:
