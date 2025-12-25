@@ -369,7 +369,7 @@ class RenderCardiacData(RenderTotalSegmentatorData):
         except importlib.metadata.PackageNotFoundError:
             tool_version = "unknown"
         if tool_version is not None and tool_version != "":
-            self.message_text += f"CardiacCTVersion version: {tool_version}\n"
+            self.message_text += f"CardiacCTExplorer version: {tool_version}\n"
 
         self.generate_actors_from_segment_itk_labelmap(label_img, 1,"LightBlue", 0.2)
         self.generate_actors_from_segment_itk_labelmap(label_img, 2,"DarkSlateBlue", 1.0, smooth="medium")

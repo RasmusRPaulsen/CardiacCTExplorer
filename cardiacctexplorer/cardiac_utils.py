@@ -31,6 +31,63 @@ from torch.utils.model_zoo import load_url
 from totalsegmentator.python_api import select_device
 
 
+def compute_input_image_statistics(params):
+    """
+    Compute simple statistics on the input image
+    """
+    input_file = params["input_file"]
+    output_folder = params["output_folder"]
+    stats_folder = params["stats_folder"]
+    quiet = params["quiet"]
+    verbose = params["verbose"]
+    write_log_file = params["write_log_file"]
+    stats_out_name = f"{stats_folder}input_image_statistics.json"
+    out_of_reconstruction_val = params.get("out_of_reconstruction_value", -2048)
+
+    if os.path.exists(stats_out_name):
+        if not quiet:
+            print(f"{stats_out_name} already exists - skipping")
+        return True
+
+    if verbose:
+        print(f"Computing {stats_out_name}")
+
+    ct_img = io_utils.read_nifti_with_logging_cached(input_file, verbose, quiet, write_log_file, output_folder)
+    if ct_img is None:
+        return False
+
+    image_stats = {}
+    spacing = ct_img.GetSpacing()
+    img_size_vox = ct_img.GetSize()
+    image_stats["spacing_x"] = spacing[0]
+    image_stats["spacing_y"] = spacing[1]
+    image_stats["spacing_z"] = spacing[2]
+    image_stats["size_vox_x"] = img_size_vox[0]
+    image_stats["size_vox_y"] = img_size_vox[1]
+    image_stats["size_vox_z"] = img_size_vox[2]
+    image_stats["size_mm_x"] = spacing[0] * img_size_vox[0]
+    image_stats["size_mm_y"] = spacing[1] * img_size_vox[1]
+    image_stats["size_mm_z"] = spacing[2] * img_size_vox[2]
+
+    ct_img_np = sitk.GetArrayFromImage(ct_img)
+    # Get all values above out_of_reconstruction_val + 1
+    valid_voxels = ct_img_np[ct_img_np > out_of_reconstruction_val + 1]
+    image_stats["full_image_num_valid_voxels"] = int(len(valid_voxels))
+    image_stats["full_image_hu_mean"] = float(np.mean(valid_voxels))
+    image_stats["full_image_hu_std"] = float(np.std(valid_voxels))
+    image_stats["full_image_hu_min"] = int(np.min(valid_voxels))
+    image_stats["full_image_hu_max"] = int(np.max(valid_voxels))
+    image_stats["full_image_hu_q01"] = float(np.percentile(valid_voxels, 1))
+    image_stats["full_image_hu_q99"] = float(np.percentile(valid_voxels, 99))
+    image_stats["full_image_hu_q001"] = float(np.percentile(valid_voxels, 0.1))
+    image_stats["full_image_hu_q999"] = float(np.percentile(valid_voxels, 99.9))
+    json_object = json.dumps(image_stats, indent=4)
+    with open(stats_out_name, "w") as outfile:
+        outfile.write(json_object)
+
+    return True
+
+
 
 def compute_mask_hu_statistics(ct_img_np, mask, spacing, anatomy_name, segm_name, params, hu_stats):
     quiet = params["quiet"]
@@ -38,7 +95,6 @@ def compute_mask_hu_statistics(ct_img_np, mask, spacing, anatomy_name, segm_name
     write_log_file = params["write_log_file"]
     out_of_scan_value = params.get("out_of_reconstruction_value", -2048)
 
-    # Set out of scan values to NaN to not affect statistics
     # Remove the part of the mask, where the image values are below out_of_scan_value + 1
     mask = np.logical_and(mask, ct_img_np > out_of_scan_value + 1)
 
@@ -61,16 +117,16 @@ def compute_mask_hu_statistics(ct_img_np, mask, spacing, anatomy_name, segm_name
         return False
 
     hu_vals = ct_img_np[mask_eroded]
-    hu_stats[f"{anatomy_name}_count"] = len(hu_vals)
-    hu_stats[f"{anatomy_name}_mean"] = np.mean(hu_vals)
-    hu_stats[f"{anatomy_name}_std"] = np.std(hu_vals)
-    hu_stats[f"{anatomy_name}_med"] = np.median(hu_vals)
-    hu_stats[f"{anatomy_name}_min"] = int(np.min(hu_vals))
-    hu_stats[f"{anatomy_name}_max"] = int(np.max(hu_vals))
-    hu_stats[f"{anatomy_name}_q01"] = np.percentile(hu_vals, 1)
-    hu_stats[f"{anatomy_name}_q99"] = np.percentile(hu_vals, 99)
-    hu_stats[f"{anatomy_name}_q001"] = np.percentile(hu_vals, 0.1)
-    hu_stats[f"{anatomy_name}_q999"] = np.percentile(hu_vals, 99.9)
+    hu_stats[f"{anatomy_name}_vox_count"] = len(hu_vals)
+    hu_stats[f"{anatomy_name}_hu_mean"] = np.mean(hu_vals)
+    hu_stats[f"{anatomy_name}_hu_std"] = np.std(hu_vals)
+    hu_stats[f"{anatomy_name}_hu_med"] = np.median(hu_vals)
+    hu_stats[f"{anatomy_name}_hu_min"] = int(np.min(hu_vals))
+    hu_stats[f"{anatomy_name}_hu_max"] = int(np.max(hu_vals))
+    hu_stats[f"{anatomy_name}_hu_q01"] = np.percentile(hu_vals, 1)
+    hu_stats[f"{anatomy_name}_hu_q99"] = np.percentile(hu_vals, 99)
+    hu_stats[f"{anatomy_name}_hu_q001"] = np.percentile(hu_vals, 0.1)
+    hu_stats[f"{anatomy_name}_hu_q999"] = np.percentile(hu_vals, 99.9)
     return True
 
 
@@ -288,9 +344,9 @@ def predict_laa_with_nudf(params):
     if os.path.exists(hu_stats_name):
         with open(hu_stats_name, "r") as f:
             hu_stats = json.load(f)
-        la_q001_hu = hu_stats.get("la_q001", 100000)
-        pv_q001 = hu_stats.get("pv_q001", 100000)
-        aorta_q001 = hu_stats.get("aorta_q001", 100000)
+        la_q001_hu = hu_stats.get("la_hu_q001", 100000)
+        pv_q001 = hu_stats.get("pv_hu_q001", 100000)
+        aorta_q001 = hu_stats.get("aorta_hu_q001", 100000)
         min_hu = min(la_q001_hu, pv_q001, aorta_q001, min_hu)
     if verbose:
         print(f"Using minimum HU value of {min_hu} for LAA prediction")
@@ -461,8 +517,8 @@ def refine_pulmonary_veins(params):
     if os.path.exists(hu_stats_name):
         with open(hu_stats_name, "r") as f:
             hu_stats = json.load(f)
-        la_q001_hu = hu_stats.get("la_q001", 100000)
-        pv_q001 = hu_stats.get("pv_q001", 100000)
+        la_q001_hu = hu_stats.get("la_hu_q001", 100000)
+        pv_q001 = hu_stats.get("pv_hu_q001", 100000)
         min_hu = min(la_q001_hu, pv_q001, min_hu)
     if verbose:
         print(f"Using minimum HU value of {min_hu} for pulmonary veins refinement")
@@ -584,9 +640,9 @@ def combine_low_and_high_res_aorta(params):
     if os.path.exists(hu_stats_name):
         with open(hu_stats_name, "r") as f:
             hu_stats = json.load(f)
-            la_q001_hu = hu_stats.get("la_q001", 100000)
-            pv_q001 = hu_stats.get("pv_q001", 100000)
-            aorta_q001 = hu_stats.get("aorta_q001", 100000)
+            la_q001_hu = hu_stats.get("la_hu_q001", 100000)
+            pv_q001 = hu_stats.get("pv_hu_q001", 100000)
+            aorta_q001 = hu_stats.get("aorta_hu_q001", 100000)
             min_hu = min(la_q001_hu, pv_q001, aorta_q001, min_hu)
     if verbose:
         print(f"Using minimum HU value of {min_hu} for aorta combination prediction")
@@ -682,8 +738,8 @@ def refine_coronary_artery_aorta_overlap(params):
     if os.path.exists(hu_stats_name):
         with open(hu_stats_name, "r") as f:
             hu_stats = json.load(f)
-        la_q001_hu = hu_stats.get("la_q001", 100000)
-        pv_q001 = hu_stats.get("pv_q001", 100000)
+        la_q001_hu = hu_stats.get("la_hu_q001", 100000)
+        pv_q001 = hu_stats.get("pv_hu_q001", 100000)
         min_hu = min(la_q001_hu, pv_q001, min_hu)
     if verbose:
         print(f"Using minimum HU value of {min_hu} for coronary artery refinement")
@@ -903,12 +959,12 @@ def create_image_slices_from_segmentation(params):
     if os.path.exists(hu_stats_name):
         with open(hu_stats_name, "r") as f:
             hu_stats = json.load(f)
-            la_q001_hu = hu_stats.get("la_q001", 100000)
-            pv_q001 = hu_stats.get("pv_q001", 100000)
-            aorta_q001 = hu_stats.get("aorta_q001", 100000)
-            la_q999 = hu_stats.get("la_q999", 0)
-            pv_q999 = hu_stats.get("pv_q999", 0)
-            aorta_q999 = hu_stats.get("aorta_q999", 0)
+            la_q001_hu = hu_stats.get("la_hu_q001", 100000)
+            pv_q001 = hu_stats.get("pv_hu_q001", 100000)
+            aorta_q001 = hu_stats.get("aorta_hu_q001", 100000)
+            la_q999 = hu_stats.get("la_hu_q999", 0)
+            pv_q999 = hu_stats.get("pv_hu_q999", 0)
+            aorta_q999 = hu_stats.get("aorta_hu_q999", 0)
             min_hu = min(la_q001_hu, pv_q001, aorta_q001, min_hu)
             max_hu = max(la_q999, pv_q999, aorta_q999, max_hu)
     if verbose:
@@ -1080,6 +1136,61 @@ def visualize_cardiac_data(params):
 
     return True
 
+
+def gather_all_statistics(params):
+    """
+    Gather all computed statistics into a single json file
+    """
+    input_file = params["input_file"]
+    scan_name = params["pure_id"]
+    output_folder = params["output_folder"]
+    stats_folder = params["stats_folder"]
+    quiet = params["quiet"]
+    verbose = params["verbose"]
+    # write_log_file = params["write_log_file"]
+    stats_out_name = f"{stats_folder}all_cardiac_statistics.json"
+    img_stats = f"{stats_folder}input_image_statistics.json"
+    hu_stats = f"{stats_folder}hu_statistics.json"
+    partial_organ_stats = f"{stats_folder}partial_organ_info.json"
+
+    if os.path.exists(stats_out_name):
+        if not quiet:
+            print(f"{stats_out_name} already exists - skipping")
+        return True
+
+    if verbose:
+        print(f"Computing {stats_out_name}")
+
+    all_stats = {"scan_name": scan_name,
+                "input_file": input_file,
+                "output_folder": output_folder}
+    try:
+        tool_version = importlib.metadata.version("CardiacCTExplorer")
+    except importlib.metadata.PackageNotFoundError:
+        tool_version =  "unknown"
+    if tool_version is not None and tool_version != "":
+        all_stats["CardiacCTExplorer"] = tool_version
+
+    last_error_message = gu.get_last_error_message()
+    if last_error_message:
+        all_stats["last_error_message"] = last_error_message
+    else:
+        all_stats["last_error_message"] = ""
+
+    stats_files = [img_stats, hu_stats, partial_organ_stats]
+    for stats_file in stats_files:
+        if os.path.exists(stats_file):
+            with open(stats_file, "r") as f:
+                stats_data = json.load(f)
+            all_stats.update(stats_data)
+
+    # Dump the stats as JSON file
+    with open(stats_out_name, "w") as f:
+        json.dump(all_stats, f, indent=4)
+
+    return True
+
+
 def do_cardiac_analysis(params):
     """
     Compute cardiac data
@@ -1119,6 +1230,8 @@ def do_cardiac_analysis(params):
     # try:
     success = True
     if success:
+        success = compute_input_image_statistics(params)
+    if success:
         success = compute_hu_statistics(params)
     if success:
         success = extract_laa_roi(params)
@@ -1138,6 +1251,9 @@ def do_cardiac_analysis(params):
         success = create_image_slices_from_segmentation(params)
     if success:
         success = visualize_cardiac_data(params)
+
+    # We gather all statistcs even if some of the previous steps failed
+    success = gather_all_statistics(params)
     # except Exception as e:
     #     msg = "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"
     #     msg += f"Exception during cardiac analysis of {scan_id}: {str(e)}\n"
