@@ -955,7 +955,7 @@ def visualize_cardiac_data(params):
     segm_name_laa = f"{segm_folder}laa_nudf_label.nii.gz"
     cardiac_mask_out = f"{segm_folder}cardiac_mask.nii.gz"
     segm_name_in = f"{segm_folder}cardiac_combined_segmentation.nii.gz"
-    image_base_name_in = f"{segm_folder}cardiac_segmentation_slice_"
+    image_base_name_in = f"{segm_folder}cardiac_segmentation"
 
 
     mask_with_cardiac_segmentation = True
