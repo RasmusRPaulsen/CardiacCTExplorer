@@ -781,6 +781,11 @@ def get_label_names_and_numbers_as_text():
     return label_names
 
 
+def get_label_names_as_list():
+    label_names = ["Myocardium", "LA", "LV", "RA", "RV", "Aorta", "PA", "LAA", "Coronary", "PV"]
+    return label_names
+
+
 def combine_segmentations_into_one_labelmap(params):
     """
     Combine segmentations into one labelmap
@@ -883,7 +888,7 @@ def create_image_slices_from_segmentation(params):
         return True
 
     if verbose:
-        print(f"Computing orthonogal slices for segmentation id {segm_id} into {base_name_out}")
+        print(f"Computing orthogonal slices for segmentation id {segm_id} into {base_name_out}")
 
     label_img = io_utils.read_nifti_with_logging_cached(segm_in_name, verbose, quiet, write_log_file, output_folder)
     if label_img is None:
@@ -912,6 +917,94 @@ def create_image_slices_from_segmentation(params):
     ct_img_np = sitk.GetArrayFromImage(ct_img)
     label_img_np = sitk.GetArrayFromImage(label_img).astype(np.uint8)
     su.extract_orthonogonal_slices_from_given_segment(ct_img_np, label_img_np, segm_id, base_name_out, min_hu, max_hu)
+
+    return True
+
+
+def check_for_partial_organs(params):
+    """
+    Check if each segmentation hits the boundaries of the scan and put it into a stats json file
+    """
+    input_file = params["input_file"]
+    output_folder = params["output_folder"]
+    stats_folder = params["stats_folder"]
+    segm_folder = params["segm_folder"]
+    quiet = params["quiet"]
+    verbose = params["verbose"]
+    write_log_file = params["write_log_file"]
+    segm_in_name = f"{segm_folder}cardiac_combined_segmentation.nii.gz"
+    low_thresh = params["out_of_reconstruction_value"]
+    high_thresh = 16000
+    stats_out_name = f"{stats_folder}partial_organ_info.json"
+
+    if os.path.exists(stats_out_name):
+        if not quiet:
+            print(f"{stats_out_name} already exists - skipping")
+        return True
+
+    if verbose:
+        print(f"Computing {stats_out_name}")
+
+    label_img = io_utils.read_nifti_with_logging_cached(segm_in_name, verbose, quiet, write_log_file, output_folder)
+    if label_img is None:
+        return False
+
+    ct_img = io_utils.read_nifti_with_logging_cached(input_file, verbose, quiet, write_log_file, output_folder)
+    if ct_img is None:
+        return False
+
+    ct_np = sitk.GetArrayFromImage(ct_img)
+    label_img_np = sitk.GetArrayFromImage(label_img).astype(np.uint8)
+    combined_mask = (low_thresh >= ct_np) | (ct_np > high_thresh)
+
+    # mark all the sides as well
+    combined_mask[:, :, 0] = True
+    combined_mask[:, :, -1] = True
+    combined_mask[:, 0, :] = True
+    combined_mask[:, -1, :] = True
+    combined_mask[0, :, :] = True
+    combined_mask[-1, :, :] = True
+
+    if verbose:
+        print("Computing SDF for out-of-scan-field")
+    spacing = ct_img.GetSpacing()
+    sdf_mask = -edt.sdf(combined_mask, anisotropy=[spacing[2], spacing[1], spacing[0]], parallel=8)
+
+    max_space = np.max(np.asarray(spacing))
+    # overlap_dist = 1.0
+    overlap_dist = max(2 * max_space, 1)
+
+    label_names = get_label_names_as_list()
+    n_labels = len(label_names)
+    partial_organ_info = {}
+    for label_idx in range(n_labels):
+        label_num = label_idx + 1
+        label_name = label_names[label_idx]
+        # if verbose:
+        #     print(f"Checking for partial organ: {label_name} (label {label_num})")
+        mask_np = label_img_np  == label_num
+        if np.sum(mask_np) == 0:
+            # if verbose:
+            #     print(f"  No segmentation found for {label_name} (label {label_num}) - skipping")
+            partial_organ_info[f"{label_name}_present"] = False
+            partial_organ_info[f"{label_name}_partial"] = False
+            continue
+        partial_organ_info[f"{label_name}_present"] = True
+
+        # Check of the mask touches the side of the scan or reconstruction
+        overlap_region = mask_np & (sdf_mask < overlap_dist)
+        if np.sum(overlap_region) == 0:
+            # if verbose:
+            #     print(f"  {label_name} (label {label_num}) segmentation is complete")
+            partial_organ_info[f"{label_name}_partial"] = False
+        else:
+            # if verbose:
+            #     print(f"  {label_name} (label {label_num}) segmentation is partial")
+            partial_organ_info[f"{label_name}_partial"] = True
+
+    # Save the stats as JSON file
+    with open(stats_out_name, "w") as f:
+        json.dump(partial_organ_info, f, indent=4)
 
     return True
 
@@ -945,14 +1038,6 @@ def visualize_cardiac_data(params):
     quiet = params["quiet"]
     verbose = params["verbose"]
     write_log_file = params["write_log_file"]
-    hu_stats_name = f"{stats_folder}hu_statistics.json"
-    min_hu = params.get("minimum_coronary_artery_hu_value", 20)
-
-    segm_name_hc = f"{ts_folder}heartchambers_highres.nii.gz"
-    segm_name_aorta = f"{segm_folder}aorta_refined.nii.gz"
-    segm_name_ca = f"{segm_folder}coronary_arteries_refined.nii.gz"
-    segm_name_pv = f"{segm_folder}pv_refined.nii.gz"
-    segm_name_laa = f"{segm_folder}laa_nudf_label.nii.gz"
     cardiac_mask_out = f"{segm_folder}cardiac_mask.nii.gz"
     segm_name_in = f"{segm_folder}cardiac_combined_segmentation.nii.gz"
     image_base_name_in = f"{segm_folder}cardiac_segmentation"
@@ -962,10 +1047,10 @@ def visualize_cardiac_data(params):
     vis_file = f"{vis_folder}cardiac_visualization.png"
     win_size = params.get("rendering_window_size", [1600, 1200])
 
-    # if os.path.exists(vis_file):
-    #     if verbose:
-    #         print(f"{vis_file} already exists - skipping")
-    #     return True
+    if os.path.exists(vis_file):
+        if verbose:
+            print(f"{vis_file} already exists - skipping")
+        return True
 
     if verbose:
         print(f"Creating visualization {vis_file}")
@@ -1047,6 +1132,8 @@ def do_cardiac_analysis(params):
         success = refine_coronary_artery_aorta_overlap(params)
     if success:
         success = combine_segmentations_into_one_labelmap(params)
+    if success:
+        success = check_for_partial_organs(params)
     if success:
         success = create_image_slices_from_segmentation(params)
     if success:
