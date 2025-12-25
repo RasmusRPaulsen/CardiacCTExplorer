@@ -785,16 +785,16 @@ def combine_segmentations_into_one_labelmap(params):
     """
     Combine segmentations into one labelmap
     """
-    input_file = params["input_file"]
+    # input_file = params["input_file"]
     ts_folder = params["ts_folder"]
     output_folder = params["output_folder"]
-    stats_folder = params["stats_folder"]
+    # stats_folder = params["stats_folder"]
     segm_folder = params["segm_folder"]
     quiet = params["quiet"]
     verbose = params["verbose"]
     write_log_file = params["write_log_file"]
-    hu_stats_name = f"{stats_folder}hu_statistics.json"
-    min_hu = params.get("minimum_coronary_artery_hu_value", 20)
+    # hu_stats_name = f"{stats_folder}hu_statistics.json"
+    # min_hu = params.get("minimum_coronary_artery_hu_value", 20)
 
     segm_name_hc = f"{ts_folder}heartchambers_highres.nii.gz"
     segm_name_aorta = f"{segm_folder}aorta_refined.nii.gz"
@@ -858,6 +858,63 @@ def combine_segmentations_into_one_labelmap(params):
     sitk.WriteImage(label_img_out, segm_out_name)
 
     return True
+
+
+def create_image_slices_from_segmentation(params):
+    """
+    Create image slices from segmentation
+    """
+    input_file = params["input_file"]
+    output_folder = params["output_folder"]
+    stats_folder = params["stats_folder"]
+    segm_folder = params["segm_folder"]
+    quiet = params["quiet"]
+    verbose = params["verbose"]
+    write_log_file = params["write_log_file"]
+    hu_stats_name = f"{stats_folder}hu_statistics.json"
+    segm_in_name = f"{segm_folder}cardiac_combined_segmentation.nii.gz"
+    base_name_out = f"{segm_folder}cardiac_segmentation_slice_"
+    segm_id = 8
+
+    #
+    # if os.path.exists(segm_out_name):
+    #     if not quiet:
+    #         print(f"{segm_out_name} already exists - skipping")
+    #     return True
+
+    # if verbose:
+    #     print(f"Computing {segm_out_name}")
+
+    label_img = io_utils.read_nifti_with_logging_cached(segm_in_name, verbose, quiet, write_log_file, output_folder)
+    if label_img is None:
+        return False
+
+    ct_img = io_utils.read_nifti_with_logging_cached(input_file, verbose, quiet, write_log_file, output_folder)
+    if ct_img is None:
+        return False
+
+    min_hu = 0
+    max_hu = 500
+    if os.path.exists(hu_stats_name):
+        with open(hu_stats_name, "r") as f:
+            hu_stats = json.load(f)
+            la_q001_hu = hu_stats.get("la_q001", 100000)
+            pv_q001 = hu_stats.get("pv_q001", 100000)
+            aorta_q001 = hu_stats.get("aorta_q001", 100000)
+            la_q999 = hu_stats.get("la_q999", 0)
+            pv_q999 = hu_stats.get("pv_q999", 0)
+            aorta_q999 = hu_stats.get("aorta_q999", 0)
+            min_hu = min(la_q001_hu, pv_q001, aorta_q001, min_hu)
+            max_hu = max(la_q999, pv_q999, aorta_q999, max_hu)
+    if verbose:
+        print(f"Using HU value range {min_hu:.0f} - {max_hu:.0f} for cardiac segmentation slices")
+
+    ct_img_np = sitk.GetArrayFromImage(ct_img)
+    label_img_np = sitk.GetArrayFromImage(label_img).astype(np.uint8)
+    su.extract_orthonogonal_slices_from_given_segment(ct_img_np, label_img_np, segm_id, base_name_out, min_hu, max_hu)
+
+    return True
+
 
 def generate_cardiac_mask(label_img, mask_out_name):
     """
@@ -925,8 +982,7 @@ def visualize_cardiac_data(params):
         #if not os.path.exists(cardiac_mask_out):
         generate_cardiac_mask(label_img, cardiac_mask_out)
 
-    render_to_file = False
-    # TODO: Mask image with mask
+    render_to_file = True
     render_cardiac = RenderCardiacData(win_size, ct_img, label_img, verbose=verbose, quiet=quiet, render_to_file=render_to_file)
     render_cardiac.set_sitk_image_file(input_file, mask_image)
     if render_to_file:
@@ -988,6 +1044,8 @@ def do_cardiac_analysis(params):
         success = refine_coronary_artery_aorta_overlap(params)
     if success:
         success = combine_segmentations_into_one_labelmap(params)
+    if success:
+        success = create_image_slices_from_segmentation(params)
     if success:
         success = visualize_cardiac_data(params)
     # except Exception as e:

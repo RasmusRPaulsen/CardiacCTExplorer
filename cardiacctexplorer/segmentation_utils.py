@@ -4,7 +4,12 @@ from scipy.ndimage import measurements
 import edt
 import SimpleITK as sitk
 from cardiacctexplorer.io_utils import read_nifti_file_robustly
-
+from skimage.segmentation import find_boundaries
+from skimage.exposure import rescale_intensity
+from skimage.util import img_as_ubyte
+from skimage import color
+from skimage.io import imsave
+from skimage.measure import label, regionprops
 
 def extract_crop_around_segmentation(segm, margin_mm, spacing):
     # print(f"DEBUG: spacing: {spacing[2]:.2f} {spacing[1]:.2f} {spacing[0]:.2f} for shape: {segm.shape}")
@@ -465,3 +470,86 @@ def check_if_segmentation_hit_sides_of_scan(segmentation, segm_id, n_slices_to_c
         sides.add("back")
 
     return sides
+
+
+def set_window_and_level_on_single_slice(img_in, img_window, img_level):
+    out_min = 0
+    out_max = 1
+    in_min = img_level - img_window / 2
+    in_max = img_level + img_window / 2
+    # in_max = 800
+
+    # https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.rescale_intensity
+    out_img = rescale_intensity(img_in, in_range=(in_min, in_max), out_range=(out_min, out_max))
+
+    return out_img
+
+def write_single_slice_with_overlay(single_slice_np, single_slice_np_img,
+                                    img_window, img_level, slice_out_name, slice_out_name_cropped):
+    boundary = find_boundaries(single_slice_np, mode='thick')
+
+    single_slice_np_img = set_window_and_level_on_single_slice(single_slice_np_img, img_window, img_level)
+    scaled_ubyte = img_as_ubyte(single_slice_np_img)
+    scaled_2_rgb = color.gray2rgb(scaled_ubyte)
+    rgb_boundary = [255, 0, 0]
+    scaled_2_rgb[boundary > 0] = rgb_boundary
+    imsave(slice_out_name, np.flipud(scaled_2_rgb))
+
+    region_p = regionprops(img_as_ubyte(boundary))
+    if len(region_p) < 1:
+        print(f"No regions found for {slice_out_name}")
+        return
+    bbox = list(region_p[0].bbox)
+
+    shp = boundary.shape
+    # Extend bbox range.
+    # TODO set value elsewhere
+    extend = 20
+    bbox[0] = max(0, bbox[0] - extend)
+    bbox[1] = max(0, bbox[1] - extend)
+    bbox[2] = min(shp[0], bbox[2] + extend)
+    bbox[3] = min(shp[1], bbox[3] + extend)
+
+    scaled_2_rgb_crop = scaled_2_rgb[bbox[0]:bbox[2], bbox[1]:bbox[3]]
+    imsave(slice_out_name_cropped, np.flipud(scaled_2_rgb_crop))
+
+
+def extract_orthonogonal_slices_from_given_segment(img_np, label_img_np, segment_id, base_name, min_hu, max_hu):
+    slice_1_out_rgb = f"{base_name}_slice_1_rgb.png"
+    # slice_1_out_label = f"{stat_dir}{segment_name}_slice_1_label.png"
+    slice_1_out_rgb_crop = f"{base_name}_slice_1_rgb_crop.png"
+    slice_2_out_rgb = f"{base_name}_slice_2_rgb.png"
+    slice_2_out_rgb_crop = f"{base_name}_slice_2_rgb_crop.png"
+    slice_3_out_rgb = f"{base_name}_slice_3_rgb.png"
+    slice_3_out_rgb_crop = f"{base_name}_slice_3_rgb_crop.png"
+    # slice_out_info = f"{stat_dir}{segment_name}_slice_info.json"
+    # Default values. If the values is -10000 they should be automatically computed
+    visualization_min_hu = min_hu
+    visualization_max_hu = max_hu
+
+    mask_np = label_img_np == segment_id
+    if np.sum(mask_np) < 10:
+        return
+
+    img_window = visualization_max_hu - visualization_min_hu
+    img_level = (visualization_max_hu + visualization_min_hu) / 2.0
+
+    com_np = measurements.center_of_mass(mask_np)
+
+    rel_idx = int(com_np[0])
+    single_slice_np = mask_np[rel_idx, :, :]
+    single_slice_np_img = img_np[rel_idx, :, :]
+    write_single_slice_with_overlay(single_slice_np, single_slice_np_img, img_window, img_level,
+                                    slice_1_out_rgb, slice_1_out_rgb_crop)
+
+    rel_idx = int(com_np[1])
+    single_slice_np = mask_np[:, rel_idx, :]
+    single_slice_np_img = img_np[:, rel_idx, :]
+    write_single_slice_with_overlay(single_slice_np, single_slice_np_img, img_window, img_level,
+                                    slice_2_out_rgb, slice_2_out_rgb_crop)
+
+    rel_idx = int(com_np[2])
+    single_slice_np = mask_np[:, :, rel_idx]
+    single_slice_np_img = img_np[:, :, rel_idx]
+    write_single_slice_with_overlay(single_slice_np, single_slice_np_img, img_window, img_level,
+                                    slice_3_out_rgb, slice_3_out_rgb_crop)
