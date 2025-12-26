@@ -8,12 +8,16 @@ import dicom2nifti as d2n
 
 
 
-def do_convert(verbose, quiet, write_log_file, output_folder, input_file, params):
+def do_convert(output_folder, input_file, params):
     """
     """
+    verbose = params.get("verbose", False)
+    quiet = params.get("quiet", False)
+    write_log_file = params.get("write_log_file", False)
+
     # Do not inherit any previous error message
     gu.clear_last_error_message()
-    pure_id = get_pure_scan_file_name(input_file)
+    pure_id = gu.get_pure_scan_file_name(input_file)
     conv_output_folder = f"{output_folder}{pure_id}/NIFTI/"
     conv_out_name = f"{conv_output_folder}{pure_id}.nii.gz"
     Path(conv_output_folder).mkdir(parents=True, exist_ok=True)
@@ -40,29 +44,9 @@ def do_convert(verbose, quiet, write_log_file, output_folder, input_file, params
             if not quiet:
                 print(msg)
             if write_log_file:
-                write_message_to_log_file(
-                    base_dir=output_folder, message=msg, level="error"
-                )
+                gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
             return False
     else:
-        # Assume input is DICOM folder
-        # try:
-        #     reader = sitk.ImageSeriesReader()
-        #     dicom_names = reader.GetGDCMSeriesFileNames(input_file)
-        #     reader.SetFileNames(dicom_names)
-        #     sitk_image = reader.Execute()
-        #     sitk.WriteImage(sitk_image, conv_out_name)
-        #     if verbose:
-        #         print(f"Converted DICOM folder {input_file} to NIfTI file {conv_out_name}")
-        # except Exception as e:
-        #     msg = f"Failed to convert DICOM folder {input_file} to NIfTI: {e}"
-        #     if not quiet:
-        #         print(msg)
-        #     if write_log_file:
-        #         write_message_to_log_file(
-        #             base_dir=output_folder, message=msg, level="error"
-        #         )
-        #     return False
         try:
             d2n.dicom_series_to_nifti(input_file, conv_out_name, reorient_nifti=True)
         except Exception as e:
@@ -70,45 +54,48 @@ def do_convert(verbose, quiet, write_log_file, output_folder, input_file, params
             if not quiet:
                 print(msg)
             if write_log_file:
-                write_message_to_log_file(
-                    base_dir=output_folder, message=msg, level="error"
-                )
+                gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
             return False
     return True
 
 
-def computer_process(verbose, quiet, write_log_file, params, output_folder, process_queue, process_id):
+def computer_process(params, output_folder, process_queue, process_id):
+    verbose = params.get("verbose", False)
+    # quiet = params.get("quiet", False)
+    # write_log_file = params.get("write_log_file", False)
+
     while not process_queue.empty():
         q_size = process_queue.qsize()
         input_file = process_queue.get()
         if verbose:
-            print(
-                f"Process {process_id} converting: {input_file} - {q_size} left"
-            )
+            print(f"Process {process_id} converting: {input_file} - {q_size} left")
         local_start_time = time.time()
-        do_convert(verbose, quiet, write_log_file, output_folder, input_file, params)
+        do_convert(output_folder, input_file, params)
         elapsed_time = time.time() - local_start_time
-        pure_id = get_pure_scan_file_name(input_file)
-        stats_folder = f"{output_folder}{pure_id}/statistics/"
-        Path(stats_folder).mkdir(parents=True, exist_ok=True)
+        params = gu.set_and_create_folders(input_file, output_folder, params)
+        stats_folder = params["stats_folder"]
         time_stats_out = f"{stats_folder}conversion_time.txt"
         with open(time_stats_out, "w") as f:
             f.write(f"{elapsed_time}\n")
 
         q_size = process_queue.qsize()
         est_time_left = q_size * elapsed_time
-        time_left_str = display_time(int(est_time_left))
-        time_elapsed_str = display_time(int(elapsed_time))
+        time_left_str = gu.display_time(int(est_time_left))
+        time_elapsed_str = gu.display_time(int(elapsed_time))
         if verbose:
             print(f"Process {process_id} done with {input_file} - took {time_elapsed_str}.\n"
                   f"Time left {time_left_str} for {q_size} scans (if only one process)")
     return True
 
-def convert_input_files(in_files, output_folder, params=None, nr_tg=1, verbose=False, quiet=False, write_log_file=True):
+def convert_input_files(in_files, output_folder, params):
+    verbose = params.get("verbose", False)
+    # quiet = params.get("quiet", False)
+   # write_log_file = params.get("write_log_file", False)
+
     if verbose:
         print(f"Converting {len(in_files)} files. Output to {output_folder}")
 
-    num_processes = nr_tg
+    num_processes = params.get("num_proc_general", 1)
     # no need to spawn more processes than files
     num_processes = min(num_processes, len(in_files))
 
@@ -129,7 +116,7 @@ def convert_input_files(in_files, output_folder, params=None, nr_tg=1, verbose=F
             output_files.append(fname)
             continue
 
-        pure_id = get_pure_scan_file_name(fname)
+        pure_id = gu.get_pure_scan_file_name(fname)
         conv_output_folder = f"{output_folder}{pure_id}/NIFTI/"
         conv_out_name = f"{conv_output_folder}{pure_id}.nii.gz"
         if not os.path.exists(conv_out_name):
@@ -151,15 +138,14 @@ def convert_input_files(in_files, output_folder, params=None, nr_tg=1, verbose=F
         if verbose:
             print(f"Converting: {input_file}")
         local_start_time = time.time()
-        do_convert(verbose, quiet, write_log_file, output_folder, input_file, params)
+        do_convert(output_folder, input_file, params)
         elapsed_time = time.time() - local_start_time
-        elapsed_time_str = display_time(int(elapsed_time))
+        elapsed_time_str = gu.display_time(int(elapsed_time))
         if verbose:
             print(f"Done with {input_file} - took {elapsed_time_str}")
-        pure_id = get_pure_scan_file_name(input_file)
-        stats_folder = f"{output_folder}{pure_id}/statistics/"
+        params = gu.set_and_create_folders(input_file, output_folder, params)
+        stats_folder = params["stats_folder"]
         time_stats_out = f"{stats_folder}conversion_proc_time.txt"
-        Path(stats_folder).mkdir(parents=True, exist_ok=True)
         with open(time_stats_out, "w") as f:
             f.write(f"{elapsed_time}\n")
     else:
@@ -173,18 +159,7 @@ def convert_input_files(in_files, output_folder, params=None, nr_tg=1, verbose=F
 
         processes = []
         for i in range(num_processes):
-            p = mp.Process(
-                target=computer_process,
-                args=(
-                    verbose,
-                    quiet,
-                    write_log_file,
-                    params,
-                    output_folder,
-                    process_queue,
-                    i + 1,
-                ),
-            )
+            p = mp.Process(target=computer_process, args=(params, output_folder, process_queue, i + 1))
             p.start()
             processes.append(p)
 

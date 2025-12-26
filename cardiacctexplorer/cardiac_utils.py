@@ -92,6 +92,7 @@ def compute_input_image_statistics(params):
 def compute_mask_hu_statistics(ct_img_np, mask, spacing, anatomy_name, segm_name, params, hu_stats):
     quiet = params["quiet"]
     verbose = params["verbose"]
+    output_folder = params["output_folder"]
     write_log_file = params["write_log_file"]
     out_of_scan_value = params.get("out_of_reconstruction_value", -2048)
 
@@ -103,7 +104,7 @@ def compute_mask_hu_statistics(ct_img_np, mask, spacing, anatomy_name, segm_name
         if not quiet:
             print(msg)
         if write_log_file:
-            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+            gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
     erosion_diam = 2  # in mm
@@ -222,7 +223,7 @@ def extract_laa_roi(params):
         if not quiet:
             print(msg)
         if write_log_file:
-            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+            gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
     label_img_total = io_utils.read_nifti_with_logging_cached(segm_name_total, verbose, quiet, write_log_file, output_folder)
     if label_img_total is None:
@@ -241,7 +242,7 @@ def extract_laa_roi(params):
         if not quiet:
             print(msg)
         if write_log_file:
-            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+            gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
     spacing = label_img_total.GetSpacing()
@@ -257,7 +258,7 @@ def extract_laa_roi(params):
         if not quiet:
             print(msg)
         if write_log_file:
-            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+            gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
     laa_mask = components[0]
@@ -379,7 +380,7 @@ def predict_laa_with_nudf(params):
         if not quiet:
             print(msg)
         if write_log_file:
-            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+            gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
     data = {'inputs': np.array(input, dtype=np.float32)}
@@ -423,7 +424,7 @@ def predict_laa_with_nudf(params):
         if not quiet:
             print(msg)
         if write_log_file:
-            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+            gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
     laa_mask = components[0]
@@ -467,7 +468,7 @@ def predict_laa_with_nudf(params):
         if not quiet:
             print(msg)
         if write_log_file:
-            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+            gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
     laa_mask = components[0]
@@ -588,7 +589,7 @@ def refine_pulmonary_veins(params):
             if not quiet:
                 print(msg)
             if write_log_file:
-                write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+                gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
             return False
 
         refined_segm = components[0]
@@ -689,7 +690,7 @@ def combine_low_and_high_res_aorta(params):
         if not quiet:
             print(msg)
         if write_log_file:
-            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+            gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
     refined_segm = components[0]
@@ -792,7 +793,7 @@ def refine_coronary_artery_aorta_overlap(params):
         if not quiet:
             print(msg)
         if write_log_file:
-            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+            gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
     if verbose:
@@ -1213,7 +1214,7 @@ def do_cardiac_analysis(params):
         if not quiet:
             print(msg)
         if write_log_file:
-            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+            gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
     ts_total_exists = os.path.exists(total_in_name)
@@ -1223,7 +1224,7 @@ def do_cardiac_analysis(params):
         if not quiet:
             print(msg)
         if write_log_file:
-            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+            gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
     # TODO: add exception handling later. Now we should see where the error occurs
