@@ -110,8 +110,9 @@ def get_all_measurement(in_files, all_column_names, output_folder, measures_out,
 
 def copy_all_visualization(in_files, output_folder, params):
     verbose = params["verbose"]
-    quiet = params["quiet"]
-    write_log_file = params["write_log_file"]
+
+    if verbose:
+        print(f"Copying visualizations to {output_folder}all_visualizations/")
 
     out_vis_folder = f"{output_folder}all_visualizations/"
     Path(out_vis_folder).mkdir(parents=True, exist_ok=True)
@@ -129,6 +130,31 @@ def copy_all_visualization(in_files, output_folder, params):
             continue
 
         shutil.copy(vis_in, vis_out)
+    return True
+
+
+def copy_all_segmentations(in_files, output_folder, params):
+    verbose = params["verbose"]
+
+    out_segm_folder = f"{output_folder}all_segmentations/"
+    Path(out_segm_folder).mkdir(parents=True, exist_ok=True)
+
+    if verbose:
+        print(f"Copying segmentations to {out_segm_folder}")
+
+    for in_file in in_files:
+        params = gu.set_and_create_folders(in_file, output_folder, params)
+        segm_in_folder = params["segm_folder"]
+        scan_id = params["pure_id"]
+        segm_in = f"{segm_in_folder}cardiac_combined_segmentation.nii.gz"
+        segm_out = f"{out_segm_folder}{scan_id}_cardiac_segmentations.nii.gz"
+
+        if not os.path.isfile(segm_in):
+            if verbose:
+                print(f"Segmentation {segm_in} not found, skipping")
+            continue
+
+        shutil.copy(segm_in, segm_out)
     return True
 
 
@@ -191,4 +217,5 @@ def process_measurements(in_files, output_folder, params):
             )
 
     copy_all_visualization(in_files, output_folder, params)
+    copy_all_segmentations(in_files, output_folder, params)
     return True

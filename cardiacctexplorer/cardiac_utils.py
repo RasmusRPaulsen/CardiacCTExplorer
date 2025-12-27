@@ -1,7 +1,6 @@
 import os
-from shutil import copyfile
-
-from acvl_utils.cropping_and_padding.bounding_boxes import crop_to_bbox
+# from shutil import copyfile
+# from acvl_utils.cropping_and_padding.bounding_boxes import crop_to_bbox
 from scipy.ndimage import measurements
 from pathlib import Path
 import time
@@ -13,20 +12,20 @@ from cardiacctexplorer.nudf_predictor import NUDFPredictor
 from cardiacctexplorer.visualization_utils import RenderCardiacData
 import SimpleITK as sitk
 import numpy as np
-from skimage.morphology import skeletonize, binary_dilation, binary_closing, binary_opening, ball
-from skimage.measure import label
-from skimage.segmentation import find_boundaries
+from skimage.morphology import binary_closing, binary_opening, ball
+# from skimage.measure import label
+# from skimage.segmentation import find_boundaries
 import edt
 import json
-import vtk
+# import vtk
 from vtk.util.numpy_support import vtk_to_numpy
-import imageio
-import skimage.io
-from skimage import color
-from skimage.util import img_as_ubyte
+# import imageio
+# import skimage.io
+# from skimage import color
+# from skimage.util import img_as_ubyte
 import importlib.metadata
-from scipy.ndimage import distance_transform_edt
-import torch
+# from scipy.ndimage import distance_transform_edt
+# import torch
 from torch.utils.model_zoo import load_url
 from totalsegmentator.python_api import select_device
 

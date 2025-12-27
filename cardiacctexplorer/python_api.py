@@ -79,22 +79,7 @@ def cardiacctexplorer(in_name: Union[str, Path], output: Union[str, Path], cardi
         return True
 
     compute_totalsegmentator_segmentations(in_files=in_files, output_folder=output, params=cardiacct_parameters)
-
     cardiac_analysis(in_files=in_files, output_folder=output, params=cardiacct_parameters)
-
     process_measurements(in_files=in_files, output_folder=output, params=cardiacct_parameters)
 
-    # aorta_analysis(
-    #     in_files=in_files,
-    #     output_folder=output,
-    #     params=aorta_parameters,
-    #     nr_tg=tg_nr_proc,
-    #     verbose=verbose,
-    #     quiet=quiet,
-    #     write_log_file=write_log_file,
-    # )
-    #
-    # process_measurements(
-    #     in_files=in_files, output_folder=output, verbose=verbose, quiet=quiet
-    # )
     return True
