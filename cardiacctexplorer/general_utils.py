@@ -84,7 +84,7 @@ def set_and_create_folders(in_file, output_folder, params):
     return params
 
 
-def gather_input_files_from_input(in_name: Union[str, Path], recurse_subfolders=False) -> Tuple[List[str], str]:
+def gather_input_files_from_input(in_name: Union[str, Path], recurse_subfolders=False, image_cas_mode=False) -> Tuple[List[str], str]:
     """
     Gathers a list of input files from the given input, which can be a single file, a text file with entries or a directory
 
@@ -95,6 +95,24 @@ def gather_input_files_from_input(in_name: Union[str, Path], recurse_subfolders=
         List[str]: A list of strings representing the gathered input files.
     """
     in_name = in_name.strip()
+
+    # In ImageCAS mode we assume the original folder structure with NIFTI files only
+    # where image files are called <scan_id>.img.nii.gz and labels are called <scan_id>.label.nii.gz
+    # here we just want to gather the image files
+    if image_cas_mode:
+        if os.path.isdir(in_name):
+            in_files = glob.glob(f"{in_name}/*.img.nii")
+            in_files += glob.glob(f"{in_name}/*.img.nii.gz")
+            if len(in_files) < 1:
+                msg = f"No ImageCAS NIFTI image files found in {in_name}"
+                print(msg)
+                return [], msg
+        else:
+            msg = f"Input {in_name} is not a valid directory for ImageCAS mode"
+            print(msg)
+            return [], msg
+        return in_files, ""
+
     if recurse_subfolders and os.path.isdir(in_name):
         # recursively search for nii, nii.gz, nrrd files
         in_files = glob.glob(f"{in_name}/**/*.nrrd", recursive=True)

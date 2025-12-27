@@ -3,7 +3,6 @@ from typing import Union
 import cardiacctexplorer.general_utils as gu
 from cardiacctexplorer.totalsegmentator_utils import compute_totalsegmentator_segmentations
 from cardiacctexplorer.cardiac_utils import cardiac_analysis
-# from cardiacctexplorer.aorta_utils import aorta_analysis
 from cardiacctexplorer.fileconverter_utils import convert_input_files
 from cardiacctexplorer.measurement_utils import process_measurements
 from cardiacctexplorer.nudf_laa_utils import nudf_laa_analysis
@@ -22,16 +21,8 @@ def get_default_parameters():
         "minimum_pv_hu_value": 200,
         "minimum_aorta_hu_value": 150,
         "minimum_coronary_artery_hu_value": 20,
-        "forced_aorta_min_hu_value": None,
-        "forced_aorta_max_hu_value": None,
-        "aorta_min_hu_value": 80,
-        "aorta_min_max_hu_value": 400,
-        "aorta_calcification_min_hu_value": 400,
-        "aorta_calcification_max_hu_value": 1500,
-        "aorta_calcification_std_multiplier": 3,
+        "image_cas_mode": False,
         "hounsfield_unit_offset": 0,
-        "compute_centerline_from_ts_segmentation": True,
-        "compare_with_totalsegmentator": False,
         "rendering_window_size": [1920, 1080],
         "device" : "gpu",
         "verbose": True,
@@ -43,7 +34,7 @@ def get_default_parameters():
 
 def cardiacctexplorer(in_name: Union[str, Path], output: Union[str, Path], cardiacct_parameters) -> bool:
     """
-    Run AortaExplorer from within Python.
+    Run CardiacCTExplorer from within Python.
 
     For explanation of the arguments see description of command line
     arguments in bin/cardiacctexplorer.
@@ -61,11 +52,13 @@ def cardiacctexplorer(in_name: Union[str, Path], output: Union[str, Path], cardi
     # ts_nr_proc = cardiacct_parameters.get("num_proc_total_segmentator", 1)
     # tg_nr_proc = cardiacct_parameters.get("num_proc_general", 1)
     recurse_subfolder = cardiacct_parameters.get("recurse_subfolders", False)
+    image_cas_mode = cardiacct_parameters.get("image_cas_mode", False)
 
     output = str(output)
     Path(output).mkdir(parents=True, exist_ok=True)
 
-    in_files, msg = gu.gather_input_files_from_input(in_name=in_name, recurse_subfolders=recurse_subfolder)
+    in_files, msg = gu.gather_input_files_from_input(in_name=in_name, recurse_subfolders=recurse_subfolder,
+                                                     image_cas_mode=image_cas_mode)
     if len(in_files) < 1:
         if write_log_file:
             gu.write_message_to_log_file(base_dir=output, message=msg, level="error")

@@ -1357,10 +1357,8 @@ def cardiac_analysis(in_files, output_folder, params):
         params = gu.set_and_create_folders(fname, output_folder, params)
         stats_folder = params["stats_folder"]
         stats_file = f"{stats_folder}/cardiac_statistics.json"
-        # vis_file = f"{vis_folder}aorta_visualization.png"
-        # if not os.path.exists(stats_file) or not os.path.exists(vis_file):
-        #     files_to_process.append(fname)
-        files_to_process.append(fname)
+        if not os.path.exists(stats_file):
+            files_to_process.append(fname)
     if verbose:
         print(f"Found {len(files_to_process)} files to compute cardiac analysis out of {len(in_files)} files")
 
