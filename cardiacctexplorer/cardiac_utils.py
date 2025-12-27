@@ -1231,12 +1231,12 @@ def do_cardiac_analysis(params):
     success = True
     if success:
         success = compute_input_image_statistics(params)
-    if success:
-        success = compute_hu_statistics(params)
-    if success:
-        success = extract_laa_roi(params)
-    if success:
-        success = predict_laa_with_nudf(params)
+    # if success:
+    #     success = compute_hu_statistics(params)
+    # if success:
+    #     success = extract_laa_roi(params)
+    # if success:
+    #     success = predict_laa_with_nudf(params)
     if success:
         success = refine_pulmonary_veins(params)
     if success:
@@ -1299,6 +1299,7 @@ def computer_process(params, output_folder, process_queue, process_id):
         with open(time_stats_out, "w") as f:
             f.write(f"{elapsed_time}\n")
 
+
 def setup_nudf_folder_and_get_checkpoint(params):
     """
     Setup NUDF model folder and get checkpoint file
@@ -1341,7 +1342,7 @@ def setup_nudf_folder_and_get_checkpoint(params):
 
 def cardiac_analysis(in_files, output_folder, params):
     verbose = params["verbose"]
-    params = setup_nudf_folder_and_get_checkpoint(params)
+    # params = setup_nudf_folder_and_get_checkpoint(params)
 
     num_processes = params.get("num_proc_general", 1)
 

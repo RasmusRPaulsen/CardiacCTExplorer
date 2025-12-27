@@ -95,7 +95,7 @@ def test_cardiacctexplorer():
     # input_file = "C:/data/AortaExplorer/input/D2.nii.gz"
     # input_file = "C:/data/AortaExplorer/input/abdominal_lymph_nodes.nii.gz"
     # input_file = "C:/data/AortaExplorer/input/pancreas.nii.gz"
-    input_file = "C:/data/AortaExplorer/input/subject001_CTA.nii.gz"
+    # input_file = "C:/data/AortaExplorer/input/subject001_CTA.nii.gz"
     # input_file = "C:/data/AortaExplorer/input/subject002_CTA.nii.gz"
 
     # input_file = "C:/data/AortaSeg24/images/images/subject053_CTA.nii.gz"
@@ -166,10 +166,10 @@ def test_cardiacctexplorer():
     # params["aorta_calcification_min_hu_value"] = 180
     # params["num_proc_total_segmentator"] = 3
 
-    # input_file = "C:/data/CardiacCTExplorer/input/3.img.nii.gz"
+    input_file = "C:/data/CardiacCTExplorer/input/3.img.nii.gz"
     # input_file = "C:/data/CardiacCTExplorer/input/"
-    # output_folder = "C:/data/CardiacCTExplorer/ImageCAS-output/"
-    params["num_proc_general"] = 1
+    output_folder = "C:/data/CardiacCTExplorer/ImageCAS-output/"
+    # params["num_proc_general"] = 1
 
     success = cardiacctexplorer(input_file, output_folder, params)
 
