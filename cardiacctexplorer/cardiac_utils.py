@@ -717,15 +717,23 @@ def refine_coronary_artery_aorta_overlap(params):
     quiet = params["quiet"]
     verbose = params["verbose"]
     write_log_file = params["write_log_file"]
+    image_cas_mode = params.get("image_cas_mode", False)
     hu_stats_name = f"{stats_folder}hu_statistics.json"
     min_hu = params.get("minimum_coronary_artery_hu_value", 20)
 
-    segm_name_ca = f"{ts_folder}coronary_arteries.nii.gz"
     segm_name_aorta = f"{segm_folder}aorta_refined.nii.gz"
     segm_out_name = f"{segm_folder}coronary_arteries_refined.nii.gz"
     dist_threshold = 3
     do_morpho = True
     # debug = True
+
+    # In ImageCAS mode, the coronary artery segmentation is in the same folder as the input image
+    if image_cas_mode:
+        segm_name_ca = input_file
+        segm_name_ca = segm_name_ca.replace("img", "label")
+    else:
+        segm_name_ca = f"{ts_folder}coronary_arteries.nii.gz"
+
 
     if os.path.exists(segm_out_name):
         if not quiet:
@@ -936,7 +944,7 @@ def create_image_slices_from_segmentation(params):
     segm_in_name = f"{segm_folder}cardiac_combined_segmentation.nii.gz"
     base_name_out = f"{segm_folder}cardiac_segmentation"
     check_name = f"{base_name_out}_slice_1_rgb_crop.png"
-    segm_id = 8
+    segm_id = params.get("segment_id_to_slice",8)
 
     if os.path.exists(check_name):
         if not quiet:

@@ -166,7 +166,7 @@ def test_cardiacctexplorer():
     # params["aorta_calcification_min_hu_value"] = 180
     # params["num_proc_total_segmentator"] = 3
 
-    input_file = "C:/data/CoronaryArteries/ImageCAS/volumes/"
+    input_file = "C:/data/CardiacCTExplorer/ImageCAS-in/"
     params["image_cas_mode"] = True
     # input_file = "C:/data/CardiacCTExplorer/input/3.img.nii.gz"
     # input_file = "C:/data/CardiacCTExplorer/input/"

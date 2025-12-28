@@ -22,6 +22,7 @@ def get_default_parameters():
         "minimum_aorta_hu_value": 150,
         "minimum_coronary_artery_hu_value": 20,
         "image_cas_mode": False,
+        "segment_id_to_slice": 8,
         "hounsfield_unit_offset": 0,
         "rendering_window_size": [1920, 1080],
         "device" : "gpu",
