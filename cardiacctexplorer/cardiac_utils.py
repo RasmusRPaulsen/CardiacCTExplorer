@@ -1,33 +1,22 @@
+"""Cardiac CT processing functions"""
 import os
-# from shutil import copyfile
-# from acvl_utils.cropping_and_padding.bounding_boxes import crop_to_bbox
-from scipy.ndimage import measurements
 from pathlib import Path
 import time
 import multiprocessing as mp
+import json
+import importlib.metadata
+import numpy as np
+import edt
+import SimpleITK as sitk
+from scipy.ndimage import measurements
+from skimage.morphology import binary_closing, binary_opening, ball
+from torch.utils.model_zoo import load_url
+from totalsegmentator.python_api import select_device
 import cardiacctexplorer.general_utils as gu
 import cardiacctexplorer.io_utils as io_utils
 import cardiacctexplorer.segmentation_utils as su
 from cardiacctexplorer.nudf_predictor import NUDFPredictor
 from cardiacctexplorer.visualization_utils import RenderCardiacData
-import SimpleITK as sitk
-import numpy as np
-from skimage.morphology import binary_closing, binary_opening, ball
-# from skimage.measure import label
-# from skimage.segmentation import find_boundaries
-import edt
-import json
-# import vtk
-from vtk.util.numpy_support import vtk_to_numpy
-# import imageio
-# import skimage.io
-# from skimage import color
-# from skimage.util import img_as_ubyte
-import importlib.metadata
-# from scipy.ndimage import distance_transform_edt
-# import torch
-from torch.utils.model_zoo import load_url
-from totalsegmentator.python_api import select_device
 
 
 def compute_input_image_statistics(params):
@@ -87,10 +76,9 @@ def compute_input_image_statistics(params):
     return True
 
 
-
 def compute_mask_hu_statistics(ct_img_np, mask, spacing, anatomy_name, segm_name, params, hu_stats):
     quiet = params["quiet"]
-    verbose = params["verbose"]
+    # verbose = params["verbose"]
     output_folder = params["output_folder"]
     write_log_file = params["write_log_file"]
     out_of_scan_value = params.get("out_of_reconstruction_value", -2048)
@@ -113,7 +101,7 @@ def compute_mask_hu_statistics(ct_img_np, mask, spacing, anatomy_name, segm_name
         if not quiet:
             print(msg)
         if write_log_file:
-            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+            gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
     hu_vals = ct_img_np[mask_eroded]
@@ -253,7 +241,7 @@ def extract_laa_roi(params):
 
     components = su.get_components_over_certain_size_as_individual_volumes(laa_mask, min_comp_size_vox, 1)
     if components is None or len(components) == 0:
-        msg = f"Could not find any components of size > {min_comp_size_mm3} mm3 in {segm_in_name}"
+        msg = f"Could not find any components of size > {min_comp_size_mm3} mm3 in {segm_name_total}"
         if not quiet:
             print(msg)
         if write_log_file:
@@ -363,7 +351,7 @@ def predict_laa_with_nudf(params):
     # HU normalization
     crop_normalized = np.clip(crop_img_np, -1000, 1000) / 1000
     # Reshape to add channel dimension
-    input = np.expand_dims(crop_normalized, axis=0)
+    input_data = np.expand_dims(crop_normalized, axis=0)
 
     # TODO: Get from config
     resolution = 128
@@ -375,14 +363,14 @@ def predict_laa_with_nudf(params):
     if verbose:
         print("Setting up NUDF model")
     if not nudf_predictor.setup_model():
-        msg = f"Could not set up NUDF model for LAA prediction."
+        msg = "Could not set up NUDF model for LAA prediction."
         if not quiet:
             print(msg)
         if write_log_file:
             gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
-    data = {'inputs': np.array(input, dtype=np.float32)}
+    data = {'inputs': np.array(input_data, dtype=np.float32)}
 
     if verbose:
         print("Running NUDF prediction")
@@ -419,7 +407,7 @@ def predict_laa_with_nudf(params):
 
     components = su.get_components_over_certain_size_as_individual_volumes(laa_label_np, min_comp_size_vox, 1)
     if components is None or len(components) == 0:
-        msg = f"Could not find any components of size > {min_comp_size_mm3} mm3 in {segm_in_name}"
+        msg = f"Could not find any components of size > {min_comp_size_mm3} mm3 in {input_file}"
         if not quiet:
             print(msg)
         if write_log_file:
@@ -463,7 +451,7 @@ def predict_laa_with_nudf(params):
     laa_label_np = laa_resampled_np == 1
     components = su.get_components_over_certain_size_as_individual_volumes(laa_label_np, min_comp_size_vox, 1)
     if components is None or len(components) == 0:
-        msg = f"Could not find any components of size > {min_comp_size_mm3} mm3 in {segm_in_name}"
+        msg = f"Could not find any components of size > {min_comp_size_mm3} mm3 in {input_file}"
         if not quiet:
             print(msg)
         if write_log_file:
@@ -584,7 +572,7 @@ def refine_pulmonary_veins(params):
 
         components = su.get_components_over_certain_size_as_individual_volumes(new_refined_mask, min_comp_size_vox, 6)
         if components is None:
-            msg = f"Could not find any pv components of size > {min_comp_size_mm} mm3 in {segm_in_name}"
+            msg = f"Could not find any pv components of size > {min_comp_size_mm} mm3 in {input_file}"
             if not quiet:
                 print(msg)
             if write_log_file:
@@ -685,7 +673,7 @@ def combine_low_and_high_res_aorta(params):
 
     components = su.get_components_over_certain_size_as_individual_volumes(refined_segm, min_comp_size_vox, 2)
     if components is None or len(components) == 0:
-        msg = f"Could not find any aorta components of size > {min_comp_size_mm3} mm3 in {segm_in_name}"
+        msg = f"Could not find any aorta components of size > {min_comp_size_mm3} mm3 in {input_file}"
         if not quiet:
             print(msg)
         if write_log_file:
@@ -1091,12 +1079,10 @@ def generate_cardiac_mask(label_img, mask_out_name):
 
 
 def visualize_cardiac_data(params):
-    """
-    """
     input_file = params["input_file"]
-    ts_folder = params["ts_folder"]
+    # ts_folder = params["ts_folder"]
     output_folder = params["output_folder"]
-    stats_folder = params["stats_folder"]
+    # stats_folder = params["stats_folder"]
     segm_folder = params["segm_folder"]
     vis_folder = params["vis_folder"]
     quiet = params["quiet"]
@@ -1206,7 +1192,7 @@ def do_cardiac_analysis(params):
     input_file = params["input_file"]
     ts_folder = params["ts_folder"]
     output_folder = params["output_folder"]
-    scan_id = params["pure_id"]
+    # scan_id = params["pure_id"]
     quiet = params["quiet"]
     verbose = params["verbose"]
     write_log_file = params["write_log_file"]
@@ -1298,10 +1284,10 @@ def computer_process(params, output_folder, process_queue, process_id):
         time_left_str = gu.display_time(int(est_time_left))
         time_elapsed_str = gu.display_time(int(elapsed_time))
         if verbose:
-            print(f"=================================================================================================")
+            print("=================================================================================================")
             print(f"Process {process_id} done with {input_file} - took {time_elapsed_str}.\n"
                   f"Time left {time_left_str} for {q_size} scans (if {n_proc} processes alive)")
-            print(f"=================================================================================================")
+            print("=================================================================================================")
         stats_folder = params["stats_folder"]
         time_stats_out = f"{stats_folder}cardiac_proc_time.txt"
         with open(time_stats_out, "w") as f:
@@ -1331,7 +1317,7 @@ def setup_nudf_folder_and_get_checkpoint(params):
         if verbose:
             print(f"NUDF checkpoint file already exists: {checkpoint_file}")
         return params
-    if not(os.path.exists(nudf_model_folder)):
+    if not os.path.exists(nudf_model_folder):
         os.makedirs(nudf_model_folder)
     if verbose:
         print(f"Downloading NUDF model checkpoint from {nudf_model_url} to {checkpoint_file}")

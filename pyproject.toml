@@ -1,8 +1,8 @@
 [project]
 name = "CardiacCTExplorer"
-version = "0.1.00"
+version = "0.1.0"
 requires-python = ">=3.9"
-description = "CardiacCTExplorer can segment and analyse the human aorta in CT scans."
+description = "CardiacCTExplorer can segment and analyse the human heart in CT scans."
 readme = "readme.md"
 license = "MIT"
 authors = [
@@ -87,3 +87,15 @@ line-ending = "auto"
 skip_magic_trailing_comma = true
 line-length = 88
 target-version = ['py39']
+
+[tool.pylint.format]
+max-line-length = 250
+max-branches=25
+max-locals=60
+max-args=10
+max-positional-arguments=10
+max-module-lines=2000
+max-statements=150
+max-returns=10
+disable=["unspecified-encoding", "missing-function-docstring"]
+

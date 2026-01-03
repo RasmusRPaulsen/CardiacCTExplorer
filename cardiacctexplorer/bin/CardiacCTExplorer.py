@@ -3,7 +3,7 @@ import argparse
 import importlib.metadata
 from pathlib import Path
 import re
-from aortaexplorer.python_api import aortaexplorer, get_default_parameters
+from cardiacctexplorer.python_api import cardiacctexplorer, get_default_parameters
 
 
 def validate_device_type_api(value):
@@ -32,11 +32,10 @@ def validate_device_type(value):
         )
 
 
-# TODO: Update AortaExplorer article
 def main():
     parser = argparse.ArgumentParser(
-        description="Segment and analyse the aorta in CT images.",
-        epilog="Written by Rasmus R. Paulsen If you use this tool please cite AortaExplorer article.",
+        description="Segment and analyse the heart in CT images.",
+        epilog="Written by Rasmus R. Paulsen If you use this tool please cite the relevant articles.",
     )
 
     parser.add_argument(
@@ -52,7 +51,7 @@ def main():
         "-o",
         metavar="directory",
         dest="output",
-        help="Output directory for aortic segmentations and analysis results.",
+        help="Output directory for segmentations and analysis results.",
         type=lambda p: Path(p).absolute(),
         required=True,
     )
@@ -62,6 +61,14 @@ def main():
         "--nr_ts",
         type=int,
         help="Number of processes for TotalSegmentator",
+        default=1,
+    )
+
+    parser.add_argument(
+        "-nn",
+        "--nr_tn",
+        type=int,
+        help="Number of processes for NUDF LAA detection and segmentation",
         default=1,
     )
 
@@ -92,6 +99,13 @@ def main():
         default=False,
     )
 
+    parser.add_argument(
+        "-ic",
+        "--image-cas-mode",
+        action="store_true",
+        help="Assume that the input is the ImageCAS dataset and include these labels in the analysis",
+        default=False,
+    )
 
     parser.add_argument(
         "-q",
@@ -127,47 +141,38 @@ def main():
     )
 
     parser.add_argument(
-        "-fmi",
-        "--forced_min_hu",
+        "-lahu",
+        "--low_aorta_hu",
         type=float,
-        help="Force a minimum HU value for lumen segmentation",
-        default=None,
+        help="Default minimum HU value for aorta lumen segmentation",
+        default=150,
     )
+
     parser.add_argument(
-        "-fma",
-        "--forced_max_hu",
+        "-lphu",
+        "--low_pv_hu",
         type=float,
-        help="Force a maximum HU value for lumen segmentation",
-        default=None,
+        help="Default minimum HU value for pulmonary vein lumen segmentation",
+        default=200,
     )
+
     parser.add_argument(
-        "-lhu",
-        "--low_hu",
+        "-llhu",
+        "--low_laa_hu",
         type=float,
-        help="The lowest possible minimum HU value for lumen segmentation",
-        default=80,
+        help="Default minimum HU value for left atrial appendage lumen segmentation",
+        default=200,
     )
+
     parser.add_argument(
-        "-mhu",
-        "--max_hu",
+        "-lchu",
+        "--low_ca_hu",
         type=float,
-        help="The lowest possible maximum HU value for lumen segmentation",
-        default=400,
+        help="Default minimum HU value for coronary artery lumen segmentation",
+        default=20,
     )
-    parser.add_argument(
-        "-clhu",
-        "--calc_low_hu",
-        type=float,
-        help="The minimum HU value for calcification segmentation",
-        default=400,
-    )
-    parser.add_argument(
-        "-cmhu",
-        "--calc_max_hu",
-        type=float,
-        help="The maximum HU value for calcification segmentation",
-        default=1500,
-    )
+
+
     parser.add_argument(
         "-huo",
         "--hu_offset",
@@ -175,21 +180,16 @@ def main():
         help="Offset to apply to Hounsfield units in the CT scan before processing",
         default=0,
     )
-    # Default False means that by default we do compute centerline from TS segmentation
+
     parser.add_argument(
-        "-nts",
-        "--no_ts_centerline",
-        action="store_true",
-        help="Do not compute centerline from TotalSegmentator segmentation",
-        default=False,
+        "-ss",
+        "--segment-id-to-slice",
+        type=int,
+        help="Which segment ID to use for slice extraction visualization",
+        default=8,
     )
-    parser.add_argument(
-        "-cts",
-        "--compare_with_ts",
-        action="store_true",
-        help="Compare aorta diameters with those from TotalSegmentator",
-        default=False,
-    )
+
+
     parser.add_argument(
         "-ix",
         "--image-x-size",
@@ -197,6 +197,7 @@ def main():
         help="Visualization image x-side length",
         default=1920,
     )
+
     parser.add_argument(
         "-iy",
         "--image-y-size",
@@ -204,6 +205,7 @@ def main():
         help="Visualization image y-side length",
         default=1080,
     )
+
     parser.add_argument(
         "--version",
         action="version",

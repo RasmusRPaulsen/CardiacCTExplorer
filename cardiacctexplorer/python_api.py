@@ -14,7 +14,7 @@ def get_default_parameters():
         "nudf_model_folder": "",
         "num_proc_total_segmentator": 1,
         "num_proc_nudf": 1,
-        "num_proc_general": 1,
+        "num_proc_general": 4,
         "recurse_subfolders": False,
         "out_of_reconstruction_value": -2048,
         "minimum_laa_hu_value": 200,

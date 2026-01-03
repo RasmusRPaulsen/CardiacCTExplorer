@@ -1,16 +1,15 @@
+"""File conversion utilities. Mostly DICOM and NRRD to NIfTI conversion."""
 import os
 from pathlib import Path
 import time
 import multiprocessing as mp
-import cardiacctexplorer.general_utils as gu
 import SimpleITK as sitk
 import dicom2nifti as d2n
+import cardiacctexplorer.general_utils as gu
 
 
 
 def do_convert(output_folder, input_file, params):
-    """
-    """
     verbose = params.get("verbose", False)
     quiet = params.get("quiet", False)
     write_log_file = params.get("write_log_file", False)
@@ -103,12 +102,8 @@ def convert_input_files(in_files, output_folder, params):
     output_files = []
     for fname in in_files:
         # Get extension and check if it is an nrrd file or if it is a DICOM folder
-        if fname.lower().endswith(".nrrd"):
-            is_nrrd = True
-        else:
-            is_nrrd = False
+        is_nrrd = fname.lower().endswith(".nrrd")
         if is_nrrd and not os.path.isfile(fname):
-            # not a file
             continue
         if not is_nrrd and not os.path.isdir(fname):
             # not a folder and not nrrd file
