@@ -1,15 +1,15 @@
+"""Utilities for segmentation processing"""
 import numpy as np
-from skimage.measure import label
 from scipy.ndimage import measurements
 import edt
 import SimpleITK as sitk
-from cardiacctexplorer.io_utils import read_nifti_file_robustly
 from skimage.segmentation import find_boundaries
 from skimage.exposure import rescale_intensity
 from skimage.util import img_as_ubyte
 from skimage import color
 from skimage.io import imsave
 from skimage.measure import label, regionprops
+from cardiacctexplorer.io_utils import read_nifti_file_robustly
 
 def extract_crop_around_segmentation(segm, margin_mm, spacing):
     # print(f"DEBUG: spacing: {spacing[2]:.2f} {spacing[1]:.2f} {spacing[0]:.2f} for shape: {segm.shape}")
@@ -76,8 +76,6 @@ def get_components_over_certain_size(
 
         largest_cc = add_crop_into_full_segmentation(largest_cc_crop, segmentation,
                                           x_min, x_max, y_min, y_max, z_min, z_max)
-
-        return largest_cc, len(comp_ids)
     else:
         debug = False
         labels = label(segmentation)
@@ -98,7 +96,7 @@ def get_components_over_certain_size(
         for idx in range(1, len(comp_ids)):
             largest_cc = np.bitwise_or(largest_cc, labels == comp_ids[idx])
 
-        return largest_cc, len(comp_ids)
+    return largest_cc, len(comp_ids)
 
 
 def get_components_over_certain_size_as_individual_volumes(
@@ -130,13 +128,11 @@ def get_components_over_certain_size_as_individual_volumes(
             return None
 
         components = []
-        for idx in range(0, len(comp_ids)):
+        for idx in range(len(comp_ids)):
             largest_cc_crop = labels == comp_ids[idx]
             largest_cc = add_crop_into_full_segmentation(largest_cc_crop, segmentation,
                                               x_min, x_max, y_min, y_max, z_min, z_max)
             components.append(largest_cc)
-
-        return components
     else:
         labels = label(segmentation)
         bin_c = np.bincount(labels.flat, weights=segmentation.flat)
@@ -157,11 +153,11 @@ def get_components_over_certain_size_as_individual_volumes(
             return None
 
         components = []
-        for idx in range(0, len(comp_ids)):
+        for idx in range(len(comp_ids)):
             largest_cc = labels == comp_ids[idx]
             components.append(largest_cc)
 
-        return components
+    return components
 
 
 def close_cavities_in_segmentations(segmentation, fast_mode=True):
@@ -184,7 +180,6 @@ def close_cavities_in_segmentations(segmentation, fast_mode=True):
         closed_segm_crop = np.bitwise_not(connected_background)
         closed_segm = add_crop_into_full_segmentation(closed_segm_crop, segmentation,
                                               x_min, x_max, y_min, y_max, z_min, z_max)
-        return closed_segm, n_comp
     else:
         background = segmentation == 0
         labels = label(background)
@@ -194,8 +189,7 @@ def close_cavities_in_segmentations(segmentation, fast_mode=True):
 
         connected_background = labels == idx
         closed_segm = np.bitwise_not(connected_background)
-
-        return closed_segm, n_comp
+    return closed_segm, n_comp
 
 
 def edt_based_opening(segmentation, spacing, radius, fast_mode=True):
@@ -212,7 +206,6 @@ def edt_based_opening(segmentation, spacing, radius, fast_mode=True):
         opened_mask_crop = sdf_mask <= radius
         opened_mask = add_crop_into_full_segmentation(opened_mask_crop, segmentation,
                                                       x_min, x_max, y_min, y_max, z_min, z_max)
-        return opened_mask
     else:
         sdf_mask = -edt.sdf(
             segmentation, anisotropy=[spacing[0], spacing[1], spacing[2]], parallel=8
@@ -222,7 +215,7 @@ def edt_based_opening(segmentation, spacing, radius, fast_mode=True):
             eroded_mask, anisotropy=[spacing[0], spacing[1], spacing[2]], parallel=8
         )
         opened_mask = sdf_mask <= radius
-        return opened_mask
+    return opened_mask
 
 
 def edt_based_closing(segmentation, spacing, radius, fast_mode=True):
@@ -239,7 +232,6 @@ def edt_based_closing(segmentation, spacing, radius, fast_mode=True):
         closed_mask_crop = sdf_mask < -radius
         closed_mask = add_crop_into_full_segmentation(closed_mask_crop, segmentation,
                                                       x_min, x_max, y_min, y_max, z_min, z_max)
-        return closed_mask
     else:
         sdf_mask = -edt.sdf(
             segmentation, anisotropy=[spacing[0], spacing[1], spacing[2]], parallel=8
@@ -249,7 +241,7 @@ def edt_based_closing(segmentation, spacing, radius, fast_mode=True):
             dilated_mask, anisotropy=[spacing[0], spacing[1], spacing[2]], parallel=8
         )
         closed_mask = sdf_mask < -radius
-        return closed_mask
+    return closed_mask
 
 
 def edt_based_dilation(segmentation, spacing, radius, fast_mode=True):
@@ -264,13 +256,12 @@ def edt_based_dilation(segmentation, spacing, radius, fast_mode=True):
         dilated_mask_crop = sdf_mask <= radius
         dilated_mask = add_crop_into_full_segmentation(dilated_mask_crop, segmentation,
                                                       x_min, x_max, y_min, y_max, z_min, z_max)
-        return dilated_mask
     else:
         sdf_mask = -edt.sdf(
             segmentation, anisotropy=[spacing[0], spacing[1], spacing[2]], parallel=8
         )
         dilated_mask = sdf_mask <= radius
-        return dilated_mask
+    return dilated_mask
 
 
 def edt_based_erosion(segmentation, spacing, radius, fast_mode=True):
@@ -285,13 +276,12 @@ def edt_based_erosion(segmentation, spacing, radius, fast_mode=True):
         eroded_mask_crop = sdf_mask < -radius
         eroded_mask = add_crop_into_full_segmentation(eroded_mask_crop, segmentation,
                                                       x_min, x_max, y_min, y_max, z_min, z_max)
-        return eroded_mask
     else:
         sdf_mask = -edt.sdf(
             segmentation, anisotropy=[spacing[0], spacing[1], spacing[2]], parallel=8
         )
         eroded_mask = sdf_mask < -radius
-        return eroded_mask
+    return eroded_mask
 
 
 def edt_based_overlap(segmentation_1, segmentation_2, spacing, radius, fast_mode=True):
@@ -318,7 +308,6 @@ def edt_based_overlap(segmentation_1, segmentation_2, spacing, radius, fast_mode
             overlap_mask_crop = (sdf_mask_1 < radius) & (sdf_mask_2_crop < radius)
             overlap_mask = add_crop_into_full_segmentation(overlap_mask_crop, segmentation_1,
                                                           x_min, x_max, y_min, y_max, z_min, z_max)
-            return overlap_mask
         else:
             crop_border_mm = radius * 2
             segm_crop, x_min, x_max, y_min, y_max, z_min, z_max \
@@ -332,7 +321,6 @@ def edt_based_overlap(segmentation_1, segmentation_2, spacing, radius, fast_mode
             overlap_mask_crop = (sdf_mask_1_crop < radius) & (sdf_mask_2 < radius)
             overlap_mask = add_crop_into_full_segmentation(overlap_mask_crop, segmentation_2,
                                                           x_min, x_max, y_min, y_max, z_min, z_max)
-            return overlap_mask
     else:
         sdf_mask_1 = -edt.sdf(
             segmentation_1, anisotropy=[spacing[0], spacing[1], spacing[2]], parallel=8
@@ -343,7 +331,7 @@ def edt_based_overlap(segmentation_1, segmentation_2, spacing, radius, fast_mode
         overlap_mask = (sdf_mask_1 < radius) & (sdf_mask_2 < radius)
 
         # overlap_mask = np.bitwise_and(sdf_mask_1 < radius, sdf_mask_2 < radius)
-        return overlap_mask
+    return overlap_mask
 
 
 def edt_based_compute_landmark_from_segmentation_overlap(

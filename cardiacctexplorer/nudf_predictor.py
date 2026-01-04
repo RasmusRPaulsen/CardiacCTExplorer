@@ -1,8 +1,10 @@
-import cardiacctexplorer.local_model as model
+"""NUDF Predictor Module"""
 import torch
 import numpy as np
+import cardiacctexplorer.local_model as model
 
 class NUDFPredictor:
+    """NUDF Predictor Class"""
     def __init__(self, checkpoint, device = torch.device("cuda"), resolution = 16, batch_points = 1000000):
         self.model = None
         self.checkpoint = checkpoint
@@ -76,4 +78,3 @@ class NUDFPredictor:
         labels = torch.cat(label_list, dim=0)
 
         return logits.numpy(), labels
-

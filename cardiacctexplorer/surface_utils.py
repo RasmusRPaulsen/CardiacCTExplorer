@@ -1,3 +1,4 @@
+"""Utilities for working with VTK surfaces and SimpleITK images."""
 import numpy as np
 import vtk
 from vtk.vtkCommonCore import vtkMath
@@ -8,9 +9,8 @@ import cardiacctexplorer.general_utils as gu
 from cardiacctexplorer.io_utils import read_nifti_file_robustly
 
 
-def sitk2vtk(img, flip_for_volume_rendering=False, debugOn=False):
+def sitk2vtk(img, flip_for_volume_rendering=False):
     """Convert a SimpleITK image to a VTK image, via numpy."""
-
     size = list(img.GetSize())
     origin = list(img.GetOrigin())
     spacing = list(img.GetSpacing())
@@ -19,10 +19,6 @@ def sitk2vtk(img, flip_for_volume_rendering=False, debugOn=False):
 
     # convert the SimpleITK image to a numpy array
     i2 = sitk.GetArrayFromImage(img)
-    if debugOn:
-        i2_string = i2.tostring()
-        print("data string address inside sitk2vtk", hex(id(i2_string)))
-
     vtk_image = vtk.vtkImageData()
 
     # VTK expects 3-dimensional parameters
@@ -70,18 +66,7 @@ def sitk2vtk(img, flip_for_volume_rendering=False, debugOn=False):
     depth_array = numpy_to_vtk(i2.ravel(), deep=True)
     depth_array.SetNumberOfComponents(ncomp)
     vtk_image.GetPointData().SetScalars(depth_array)
-
     vtk_image.Modified()
-    #
-    if debugOn:
-        print("Volume object inside sitk2vtk")
-        print(vtk_image)
-        #        print("type = ", vtktype)
-        print("num components = ", ncomp)
-        print(size)
-        print(origin)
-        print(spacing)
-        print(vtk_image.GetScalarComponentAsFloat(0, 0, 0, 0))
 
     return vtk_image
 

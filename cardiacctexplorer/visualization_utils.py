@@ -1,14 +1,10 @@
+"""Utilities for rendering 3D data with VTK."""
 import os.path
+import importlib.metadata
 import vtk
 import numpy as np
-import csv
-
-from vtkmodules.vtkIOXML import vtkXMLPolyDataWriter
-
-from cardiacctexplorer.general_utils import read_json_file
 import cardiacctexplorer.surface_utils as surfutils
 from cardiacctexplorer.surface_utils import read_nifti_itk_to_vtk
-import importlib.metadata
 
 class RenderTotalSegmentatorData:
     """
@@ -17,7 +13,6 @@ class RenderTotalSegmentatorData:
 
     This is a super class that should be inherited.
     """
-
     def __init__(self, win_size=(1600, 800), render_to_file=True):
         self.ren_win = vtk.vtkRenderWindow()
         self.ren_win.SetOffScreenRendering(render_to_file)
@@ -125,7 +120,9 @@ class RenderTotalSegmentatorData:
         vtk_dim = self.vtk_image.GetDimensions()
         vtk_spc = self.vtk_image.GetSpacing()
 
-        img_txt = f"Spacing: ({vtk_spc[0]:.2f}, {vtk_spc[1]:.2f}, {vtk_spc[2]:.2f}) mm\nDimensions: ({vtk_dim[0]}, {vtk_dim[1]}, {vtk_dim[2]}) vox\nSize: ({vtk_spc[0] * vtk_dim[0] / 10.0:.1f}, {vtk_spc[1] * vtk_dim[1] / 10.0:.1f}, {vtk_spc[2] * vtk_dim[2] / 10.0:.1f}) cm\n"
+        img_txt = (f"Spacing: ({vtk_spc[0]:.2f}, {vtk_spc[1]:.2f}, {vtk_spc[2]:.2f}) mm"
+                   f"\nDimensions: ({vtk_dim[0]}, {vtk_dim[1]}, {vtk_dim[2]}) vox\n"
+                   f"Size: ({vtk_spc[0] * vtk_dim[0] / 10.0:.1f}, {vtk_spc[1] * vtk_dim[1] / 10.0:.1f}, {vtk_spc[2] * vtk_dim[2] / 10.0:.1f}) cm\n")
         self.message_text += img_txt
 
         # Get direction to set camera (not needed when we do the brutal flip of image data in the load routine)
@@ -316,54 +313,11 @@ class RenderTotalSegmentatorData:
                 self.actors.append(actor)
 
 
-    def generate_actors_from_centerlines(self, cl_folder):
-        for cl in self.centerlines:
-            cl_file = f"{cl_folder}{cl['file']}"
-            if not os.path.exists(cl_file):
-                print(f"No {cl_file}")
-                cl_vtk = None
-            else:
-                reader = vtk.vtkXMLPolyDataReader()
-                reader.SetFileName(cl_file)
-                reader.Update()
-                cl_vtk = reader.GetOutput()
-                n_points = cl_vtk.GetNumberOfPoints()
-                if n_points < 2:
-                    print(f"No points in {cl_file}")
-                    cl_vtk = None
-
-            if cl_vtk is not None:
-                size = cl["size"]
-                color = cl["color"]
-                opacity = cl["opacity"]
-                rgba = [0.0, 0.0, 0.0, 0.0]
-                vtk.vtkNamedColors().GetColor(color, rgba)
-
-                vtk_tube_filter = vtk.vtkTubeFilter()
-                vtk_tube_filter.SetInputData(cl_vtk)
-                vtk_tube_filter.SetNumberOfSides(16)
-                vtk_tube_filter.SetRadius(size)
-                vtk_tube_filter.Update()
-
-                mapper = vtk.vtkPolyDataMapper()
-                mapper.SetInputConnection(vtk_tube_filter.GetOutputPort())
-                mapper.ScalarVisibilityOff()
-
-                actor = vtk.vtkActor()
-                actor.SetMapper(mapper)
-                actor.GetProperty().SetOpacity(opacity)
-                actor.GetProperty().SetColor(rgba[0], rgba[1], rgba[2])
-
-                self.actors.append(actor)
-
 
 class RenderCardiacData(RenderTotalSegmentatorData):
+    """Can render data from CardiacCTExplorer."""
     def __init__(self, win_size, ct_img, label_img, verbose=False, quiet=True, render_to_file=True):
         super().__init__(win_size, render_to_file=render_to_file)
-        # print(f"Initialising aorta renderer")
-
-        # self.message_text += f"Scan: {base_name}\n"
-
         try:
             tool_version = importlib.metadata.version("CardiacCTExplorer")
         except importlib.metadata.PackageNotFoundError:
@@ -376,99 +330,10 @@ class RenderCardiacData(RenderTotalSegmentatorData):
         self.generate_actors_from_segment_itk_labelmap(label_img, 3,"DarkRed", 1.0, smooth="medium")
         self.generate_actors_from_segment_itk_labelmap(label_img, 8,"DarkOliveGreen", 1.0, smooth="medium")
         self.generate_actors_from_segment_itk_labelmap(label_img, 9,"LightCoral", 0.4, smooth="medium")
-
-        # segm_name_debug = "C:/data/CardiacCTExplorer/ImageCAS-output/3.img/segmentations/pv_refined.nii.gz"
-        # self.generate_actors_from_segment_file_name(segm_name_debug, "Crimson", 0.8)
-
-        # n_aorta_parts = 1
-        # parts_stats = read_json_file(f"{stats_folder}aorta_parts.json")
-        # if parts_stats:
-        #     n_aorta_parts = parts_stats["aorta_parts"]
-        #
-        # if n_aorta_parts == 1:
-        #     segm_name_aorta = f"{segm_folder}aorta_lumen.nii.gz"
-        #     # surf_name_aorta = f"{surf_output_dir}computed_aorta_lumen_surface.vtk"
-        #     self.generate_actors_from_segment_file_name(segm_name_aorta, "Crimson", 0.8)
-        # elif n_aorta_parts == 2:
-        #     segm_name_aorta = f"{segm_folder}aorta_lumen_annulus.nii.gz"
-        #     # surf_name_aorta = f"{surf_output_dir}aorta_lumen_annulus.vtk"
-        #     self.generate_actors_from_segment_file_name(segm_name_aorta, "Crimson", 0.8)
-        #     segm_name_aorta = f"{segm_folder}aorta_lumen_descending.nii.gz"
-        #     # surf_name_aorta = f"{surf_output_dir}aorta_lumen_descending.vtk"
-        #     self.generate_actors_from_segment_file_name(segm_name_aorta, "Crimson", 0.8)
-        #
-        # segm_name_calc = f"{segm_folder}aorta_calcification_raw.nii.gz"
-        # # surf_name_calc = f"{surf_output_dir}aorta_calcification.vtk"
-        # self.generate_actors_from_segment_file_name(
-        #     segm_name_calc, "Ivory", 1.0, smooth="light"
-        # )
-        #
-        # segm_name = f"{segm_folder}iliac_artery_left_top.nii.gz"
-        # # surf_name = f"{surf_output_dir}computed_iliac_artery_left_top.vtk"
-        # self.generate_actors_from_segment_file_name(
-        #     segm_name, "DarkSalmon", 1.0, smooth="heavy"
-        # )
-        #
-        # segm_name = f"{segm_folder}iliac_artery_right_top.nii.gz"
-        # # surf_name = f"{surf_output_dir}computed_iliac_artery_right_top.vtk"
-        # self.generate_actors_from_segment_file_name(
-        #     segm_name, "PaleVioletRed", 1.0, smooth="heavy"
-        # )
-        #
-        # # TODO: THis is hacky and should be updated
-        # if n_aorta_parts == 1:
-        #     aneurysm_sac_stats_file = f"{stats_folder}aorta_aneurysm_sac_stats.json"
-        #     aneurysm_sac_stats = read_json_file(aneurysm_sac_stats_file)
-        #     if aneurysm_sac_stats:
-        #         aneurysm_sac_ratio = aneurysm_sac_stats["aorta_ratio"]
-        #         q95_dists = aneurysm_sac_stats["q95_distances"]
-        #         if aneurysm_sac_ratio > 1.18 and q95_dists > 2.5:
-        #             # Show original total segmentations since they include the sac
-        #             segm_name = f"{segm_folder}aorta_lumen_ts_org.nii.gz"
-        #             self.generate_actors_from_segment_file_name(
-        #                 segm_name, "OldLace", 0.6, smooth="heavy"
-        #             )
-        # if n_aorta_parts == 1:
-        #     self.centerlines.append(
-        #         {
-        #             "name": "aorta_center_line",
-        #             "file": "aorta_centerline.vtp",
-        #             "size": 1,
-        #             "color": "white",
-        #             "opacity": 1.0,
-        #         }
-        #     )
-        # elif n_aorta_parts == 2:
-        #     self.centerlines.append(
-        #         {
-        #             "name": "aorta_center_line_annulus",
-        #             "file": "aorta_centerline_annulus.vtp",
-        #             "size": 1,
-        #             "color": "white",
-        #             "opacity": 1.0,
-        #         }
-        #     )
-        #     self.centerlines.append(
-        #         {
-        #             "name": "aorta_center_line_descending",
-        #             "file": "aorta_centerline_descending.vtp",
-        #             "size": 1,
-        #             "color": "white",
-        #             "opacity": 1.0,
-        #         }
-        #     )
-        #
-        # self.generate_actors_from_centerlines(cl_folder)
-
         self.viewport_3d_1 = [0.0, 0.0, 0.35, 0.5]
         self.viewport_3d_2 = [0.0, 0.5, 0.35, 1.0]
         self.viewport_3d_3 = [0.35, 0.0, 0.70, 0.5]
-        # make space for warning text
-        # self.viewport_3d_4 = [0.35, 0.5, 0.70, 0.95]
-        # self.viewport_straight_1 = [0.50, 0.2, 0.60, 1.0]
-        # self.viewport_straight_2 = [0.60, 0.2, 0.70, 1.0]
         self.viewport_text = [0.7, 0.0, 1.0, 0.40]
-        # self.viewport_volume = [0.7, 0.20, 1.0, 0.40]
         self.viewport_volume = [0.35, 0.5, 0.70, 1.0]
         self.viewport_plot = [0.0, 0.0, 0.0, 0.0]
         self.viewport_slice_1 = [0.7, 0.40, 1.0, 0.60]
@@ -478,13 +343,9 @@ class RenderCardiacData(RenderTotalSegmentatorData):
         self.ren_3d_1 = None
         self.ren_3d_2 = None
         self.ren_3d_3 = None
-        # self.ren_3d_4 = None
         self.ren_slice_1 = None
         self.ren_slice_2 = None
         self.ren_slice_3 = None
-        # Straightened volumes
-        # self.ren_straight_1 = None
-        # self.ren_straight_2 = None
 
         self.setup_renderers()
 
@@ -505,9 +366,6 @@ class RenderCardiacData(RenderTotalSegmentatorData):
         self.ren_3d_3.SetBackground(vtk.vtkNamedColors().GetColor3d("Azure"))
 
         self.ren_win.AddRenderer(self.ren_3d_3)
-        # self.ren_3d_4 = vtk.vtkRenderer()
-        # self.ren_3d_4.SetViewport(self.viewport_3d_4)
-        # self.ren_win.AddRenderer(self.ren_3d_4)
 
         for actor in self.actors:
             self.ren_3d_1.AddActor(actor)
@@ -537,27 +395,10 @@ class RenderCardiacData(RenderTotalSegmentatorData):
         self.ren_3d_3.GetActiveCamera().SetPosition(c[0], c[1] + 400, c[2])
         self.ren_3d_3.ResetCameraScreenSpace()
 
-        # self.ren_3d_4.GetActiveCamera().SetParallelProjection(1)
-        # self.ren_3d_4.GetActiveCamera().SetFocalPoint(c[0], c[1], c[2])
-        # self.ren_3d_4.GetActiveCamera().SetViewUp(0, 0, 1)
-        # self.ren_3d_4.GetActiveCamera().SetPosition(c[0] - 400, c[1], c[2])
-        # self.ren_3d_4.ResetCameraScreenSpace()
-
         # Renderer for text
         self.ren_text = vtk.vtkRenderer()
         self.ren_win.AddRenderer(self.ren_text)
         self.ren_text.SetViewport(self.viewport_text)
-
-        # self.ren_warning_text = vtk.vtkRenderer()
-        # self.ren_win.AddRenderer(self.ren_warning_text)
-        # self.ren_warning_text.SetViewport(self.viewport_warning_text)
-
-        # Renderer for plot
-        # self.ren_plot = vtk.vtkRenderer()
-        # self.ren_win.AddRenderer(self.ren_plot)
-        # self.ren_plot.SetViewport(self.viewport_plot)
-
-        # Renderer for slice
         self.ren_slice_1 = vtk.vtkRenderer()
         self.ren_win.AddRenderer(self.ren_slice_1)
         self.ren_slice_1.SetViewport(self.viewport_slice_1)
@@ -588,7 +429,7 @@ class RenderCardiacData(RenderTotalSegmentatorData):
             image_viewer.SetRenderer(self.ren_slice_1)
             self.ren_slice_1.GetActiveCamera().ParallelProjectionOn()
             self.ren_slice_1.ResetCameraScreenSpace()
-            
+
         png_reader_2 = vtk.vtkPNGReader()
         if os.path.exists(plane_file_2) and png_reader_2.CanReadFile(plane_file_2):
             png_reader_2.SetFileName(plane_file_2)
@@ -612,484 +453,3 @@ class RenderCardiacData(RenderTotalSegmentatorData):
             image_viewer.SetRenderer(self.ren_slice_3)
             self.ren_slice_3.GetActiveCamera().ParallelProjectionOn()
             self.ren_slice_3.ResetCameraScreenSpace()
-
-
-
-    def set_aorta_statistics(self, stats_folder):
-        stats_file = f"{stats_folder}aorta_statistics.json"
-        scan_type_file = f"{stats_folder}aorta_scan_type.json"
-
-        aorta_stats = read_json_file(stats_file)
-        if aorta_stats is None:
-            print(f"Found no stats file {stats_file}")
-            return
-
-        last_error = aorta_stats.get("last_error_message", "")
-        if last_error != "":
-            self.message_text += f"\nError Encountered!" f"\nCheck log file"
-
-        scan_type_stats = read_json_file(scan_type_file)
-        if scan_type_stats is None:
-            print(f"Found no scan type file {scan_type_file}")
-            return
-
-        scan_type = scan_type_stats["scan_type"]
-
-        # # TODO: add more types: https://github.com/RasmusRPaulsen/DTUHeartCenter/tree/main/Aorta/figs
-        # if scan_type == "1":
-        #     cl_length = aorta_stats.get("annulus_aortic_length",0)
-        # elif scan_type == "2":
-        #     cl_length = aorta_stats.get("descending_aortic_length", 0)
-        #     # cl_length = aorta_stats["descending_aortic_length"]
-        # else:
-        #     cl_length = 0
-
-        aorta_txt = (
-            f"\nAorta HU avg: {aorta_stats.get('avg_hu', 0):.0f} ({aorta_stats.get('cl_mean', 0):.0f})"
-            f"\nstd.dev: {aorta_stats.get('std_hu', 0):.0f} ({aorta_stats.get('cl_std', 0):.0f})\n"
-            f"median: {aorta_stats.get('med_hu', 0):.0f} ({aorta_stats.get('cl_med', 0):.0f})"
-            f"\n99%: {aorta_stats.get('q99_hu', 0):.0f} ({aorta_stats.get('cl_q99', 0):.0f})"
-            f"\n1%: {aorta_stats.get('q01_hu', 0):.0f} ({aorta_stats.get('cl_q01', 0):.0f})"
-            f"\nAorta vol: {aorta_stats.get('tot_vol', 0) / 1000.0:.0f} cm3\nscan type: {scan_type}"
-        )
-        if "surface_area" in aorta_stats:
-            aorta_txt += (
-                f"\nAorta Surface area: {aorta_stats['surface_area'] / 100.0:.1f} cm2\n"
-            )
-        # f'Centerline length: {cl_length / 10.0:.1f} cm\n' \
-
-        self.message_text += aorta_txt
-
-    def set_plot_data(self, stats_folder, cl_folder):
-        n_aorta_parts = 1
-        parts_stats = read_json_file(f"{stats_folder}/aorta_parts.json")
-        if parts_stats:
-            n_aorta_parts = parts_stats["aorta_parts"]
-
-        if n_aorta_parts == 2:
-            data_file = f"{cl_folder}straight_labelmap_sampling_annulus.csv"
-            max_in_files = [
-                "aortic_arch_segment_max_slice_info",
-                "ascending_segment_max_slice_info",
-                "distensability_segment_avg_slice_info",
-                "sinotubular_junction_segment_max_slice_info",
-                "sinus_of_valsalva_segment_max_slice_info",
-                "lvot_segment_max_slice_info",
-            ]
-            max_rgb = [
-                [255, 0, 0],
-                [0, 255, 255],
-                [255, 128, 128],
-                [128, 0, 128],
-                [0, 128, 255],
-                [200, 255, 100],
-            ]
-            max_rgb = np.divide(max_rgb, 255.0)
-        elif n_aorta_parts == 1:
-            data_file = f"{cl_folder}straight_labelmap_sampling.csv"
-            max_in_files = [
-                "infrarenal_segment_max_slice_info",
-                "abdominal_segment_max_slice_info",
-                "aortic_arch_segment_max_slice_info",
-                "ascending_segment_max_slice_info",
-                "sinotubular_junction_segment_max_slice_info",
-                "sinus_of_valsalva_segment_max_slice_info",
-                "descending_segment_max_slice_info",
-                "lvot_segment_max_slice_info",
-            ]
-            max_rgb = [
-                [255, 255, 0],
-                [255, 128, 0],
-                [255, 0, 0],
-                [0, 255, 255],
-                [128, 0, 128],
-                [0, 128, 255],
-                [0, 255, 0],
-                [200, 255, 100],
-            ]
-            max_rgb = np.divide(max_rgb, 255.0)
-        else:
-            return
-
-        if not os.path.exists(data_file):
-            print(f"Could not open {data_file}")
-            return
-
-        PlotData = vtk.vtkPolyData()
-        PlotPoints = vtk.vtkPoints()
-        PlotScalars = vtk.vtkFloatArray()
-        PlotData.SetPoints(PlotPoints)
-        PlotData.GetPointData().SetScalars(PlotScalars)
-
-        try:
-            file = open(data_file, "r")
-        except IOError:
-            print(f"Cannot read {data_file}")
-            return
-
-        measurements = csv.reader(file, delimiter=",")
-
-        for elem in measurements:
-            dist = float(elem[0])
-            area = float(elem[1])
-            prc = float(elem[2])
-            # Only plot points that have at most 15% out of scan
-            if prc < 20:
-                PlotPoints.InsertNextPoint(dist, 0, 0)
-                PlotScalars.InsertNextValue(area)
-
-        if PlotPoints.GetNumberOfPoints() < 1:
-            print(f"No valid data in {data_file}")
-            return
-
-        xyplot = vtk.vtkXYPlotActor()
-        xyplot.AddDataSetInput(PlotData)
-        xyplot.SetPlotLabel(0, "Aorta")
-
-        plot_idx = 1
-        for idx, pfile in enumerate(max_in_files):
-            file_name = f"{cl_folder}{pfile}.json"
-            cut_plane_stats = read_json_file(file_name)
-            if cut_plane_stats:
-                area = cut_plane_stats["area"]
-                cl_dist = cut_plane_stats["cl_dist"]
-                rgb = max_rgb[idx]
-
-                PlotData_2 = vtk.vtkPolyData()
-                PlotPoints_2 = vtk.vtkPoints()
-                PlotScalars_2 = vtk.vtkFloatArray()
-                PlotData_2.SetPoints(PlotPoints_2)
-                PlotData_2.GetPointData().SetScalars(PlotScalars_2)
-
-                PlotPoints_2.InsertNextPoint(cl_dist, 0, 0)
-                PlotScalars_2.InsertNextValue(area)
-
-                xyplot.AddDataSetInput(PlotData_2)
-                xyplot.SetPlotGlyphType(plot_idx, 8)
-                xyplot.SetPlotColor(plot_idx, rgb)
-                plot_idx += 1
-
-        xyplot.GetPositionCoordinate().SetValue(0.05, 0.05, 0.0)
-        xyplot.GetPosition2Coordinate().SetValue(
-            0.95, 0.95, 0.0
-        )  # relative to Position
-        xyplot.SetXValuesToValue()
-        xyplot.SetYLabelFormat("%-#6.0f")
-        xyplot.SetNumberOfXLabels(6)
-        xyplot.SetNumberOfYLabels(6)
-        xyplot.SetXTitle("Distance")
-        xyplot.SetYTitle("A")
-        xyplot.GetProperty().SetLineWidth(1)
-        self.ren_plot.AddActor2D(xyplot)
-
-    @staticmethod
-    def create_cylinder_actor(pos, normal, radius=30, height=1, rgba=None, opacity=1.0):
-        """ """
-        if rgba is None:
-            rgba = [0.0, 1.0, 0.0, 0.0]
-
-        cylinder = vtk.vtkCylinderSource()
-        cylinder.SetResolution(100)
-        cylinder.CappingOn()
-        cylinder.SetRadius(radius)
-        cylinder.SetHeight(height)
-
-        y_axis = [0.0, 1.0, 0.0]
-        axis = np.cross(y_axis, normal)
-        angle = np.arccos(np.dot(y_axis, normal))
-        transform = vtk.vtkTransform()
-        transform.Translate(pos)
-        transform.RotateWXYZ(np.degrees(angle), *axis)
-        transform_filter = vtk.vtkTransformPolyDataFilter()
-        transform_filter.SetTransform(transform)
-        transform_filter.SetInputConnection(cylinder.GetOutputPort())
-        transform_filter.Update()
-
-        mapper = vtk.vtkPolyDataMapper()
-        mapper.SetInputConnection(transform_filter.GetOutputPort())
-        mapper.ScalarVisibilityOff()
-
-        actor = vtk.vtkActor()
-        actor.SetMapper(mapper)
-        actor.GetProperty().SetOpacity(opacity)
-        actor.GetProperty().SetColor(rgba[0], rgba[1], rgba[2])
-        return actor
-
-    def set_all_max_cut_data(self, cl_folder):
-        """
-        Generate a disk where max cut is found
-        """
-        cl_dir = cl_folder
-        max_in_files = [
-            "infrarenal_segment_max_slice_info",
-            "abdominal_segment_max_slice_info",
-            "aortic_arch_segment_max_slice_info",
-            "ascending_segment_max_slice_info",
-            "distensability_segment_avg_slice_info",
-            "sinotubular_junction_segment_max_slice_info",
-            "sinus_of_valsalva_segment_max_slice_info",
-            "descending_segment_max_slice_info",
-            "lvot_segment_max_slice_info",
-        ]
-        max_rgb = [
-            [255, 255, 0],
-            [255, 128, 0],
-            [255, 0, 0],
-            [0, 255, 255],
-            [255, 128, 128],
-            [128, 0, 128],
-            [0, 128, 255],
-            [0, 255, 0],
-            [200, 255, 100],
-        ]
-        max_rgb = np.divide(max_rgb, 255.0)
-
-        for idx, pfile in enumerate(max_in_files):
-            file_name = f"{cl_dir}{pfile}.json"
-            cut_plane_stats = read_json_file(file_name)
-            if cut_plane_stats:
-                pos = cut_plane_stats["origin"]
-                normal = cut_plane_stats["normal"]
-                max_diam = cut_plane_stats["max_diameter"]
-                radius = max_diam / 2 * 1.10
-                rgb = max_rgb[idx]
-
-                actor_cut = self.create_cylinder_actor(
-                    pos, normal, radius=radius, height=1.5, rgba=rgb, opacity=1.0
-                )
-
-                self.ren_3d_1.AddActor(actor_cut)
-                self.ren_3d_2.AddActor(actor_cut)
-
-    # def set_precomputed_slice(self, cl_folder):
-    #     """
-    #     Here the slices are precomputed as png files
-    #     """
-    #     plane_file = f"{cl_folder}combined_cuts.png"
-    #
-    #     png_reader = vtk.vtkPNGReader()
-    #     if not png_reader.CanReadFile(plane_file):
-    #         print(f"Can not read {plane_file}")
-    #         return
-    #     png_reader.SetFileName(plane_file)
-    #     png_reader.Update()
-    #
-    #     # https://www.weiy.city/2021/12/scale-image-displayed-by-vtkactor2d-object/
-    #     # extent = png_reader.GetOutput().GetExtent()
-    #     # origin = png_reader.GetOutput().GetOrigin()
-    #     # spacing = png_reader.GetOutput().GetSpacing()
-    #     # size = [extent[1], extent[3]]
-    #     # new_size = [5 * size[0], 5 * size[1], 1]
-    #     # interpolator = vtk.vtkImageSincInterpolator()
-    #     # resizer = vtk.vtkImageResize()
-    #     # resizer.SetInputConnection(png_reader.GetOutputPort())
-    #     # resizer.SetInterpolator(interpolator)
-    #     # resizer.SetOutputDimensions(new_size)
-    #     # resizer.InterpolateOn()
-    #     # resizer.Update()
-    #
-    #     image_viewer = vtk.vtkImageViewer2()
-    #     # image_viewer.SetInputConnection(resizer.GetOutputPort())
-    #     image_viewer.SetInputConnection(png_reader.GetOutputPort())
-    #     image_viewer.SetRenderWindow(self.ren_win)
-    #     image_viewer.SetRenderer(self.ren_slice)
-    #
-    #     image_viewer.Render()
-    #     self.ren_slice.GetActiveCamera().ParallelProjectionOn()
-    #     self.ren_slice.ResetCameraScreenSpace()
-
-    def set_cut_statistics(self, cl_folder):
-        cl_dir = cl_folder
-        cut_stats = [
-            {"name": "LVOT", "file": "lvot_segment_max_slice_info.json"},
-            {
-                "name": "Sinus of Valsalve",
-                "file": "sinus_of_valsalva_segment_max_slice_info.json",
-            },
-            {
-                "name": "Sinutubular junction",
-                "file": "sinotubular_junction_segment_max_slice_info.json",
-            },
-            {"name": "Ascending", "file": "ascending_segment_max_slice_info.json"},
-            {"name": "Aortic arch", "file": "aortic_arch_segment_max_slice_info.json"},
-            {"name": "Descending", "file": "descending_segment_max_slice_info.json"},
-            {"name": "Abdominal", "file": "abdominal_segment_max_slice_info.json"},
-            {"name": "Infrarenal", "file": "infrarenal_segment_max_slice_info.json"},
-        ]
-        # self.message_text += f"Max cross sectional area: {cut_area:.0f} mm2\n" \
-        #                      f"Diameters: {min_diam:.0f} and {max_diam:.0f} mm\n"
-
-        local_msg = "\nMax cross sectional areas:\n"
-        any_stats = False
-        for c in cut_stats:
-            name = c["name"]
-            file = c["file"]
-            file = f"{cl_dir}{file}"
-
-            stats = read_json_file(file)
-            if stats:
-                any_stats = True
-                cut_area = stats["area"]
-                local_msg += f"{name}: {cut_area} mm2\n"
-        if any_stats:
-            self.message_text += local_msg
-
-    def set_aortic_tortuosity_index_statistics(self, stats_folder):
-        stats_file = f"{stats_folder}/aorta_statistics.json"
-        ati_stats = read_json_file(stats_file)
-        if not ati_stats:
-            print(f"Could not read {stats_file}")
-            return
-
-        local_txt = ""
-        any_ati = False
-
-        if "annulus_aortic_length" in ati_stats:
-            cl_length = ati_stats["annulus_aortic_length"]
-            self.message_text += f"\nTotal aortic length: {cl_length / 10.0:.1f} cm\n"
-        local_txt += "\nAortic tortuosity index:\n"
-        if "annulus_aortic_tortuosity_index" in ati_stats:
-            any_ati = True
-            ati = ati_stats["annulus_aortic_tortuosity_index"]
-            local_txt += f"Annulus: {ati:.2f}\n"
-        ati = ati_stats.get("ascending_aortic_tortuosity_index", None)
-        if ati:
-            any_ati = True
-            local_txt += f"Ascending: {ati:.2f}\n"
-        ati = ati_stats.get("descending_aortic_tortuosity_index", None)
-        if ati:
-            any_ati = True
-            local_txt += f"Descending: {ati:.2f}\n"
-        if "diaphragm_aortic_tortuosity_index" in ati_stats:
-            any_ati = True
-            ati = ati_stats["diaphragm_aortic_tortuosity_index"]
-            local_txt += f"Diaphragm: {ati:.2f}\n"
-        if "infrarenal_aortic_tortuosity_index" in ati_stats:
-            any_ati = True
-            ati = ati_stats["infrarenal_aortic_tortuosity_index"]
-            local_txt += f"Infrarenal: {ati:.2f}\n"
-
-        if any_ati:
-            self.message_text += local_txt
-
-    def set_aortic_aneurysm_sac_statistics(self, stats_folder):
-        type_file = f"{stats_folder}/aorta_scan_type.json"
-        stats_file = f"{stats_folder}/aorta_aneurysm_sac_stats.json"
-        if not os.path.exists(type_file):
-            print(f"Missing file {type_file}")
-            return
-
-        scan_type_stats = read_json_file(type_file)
-        if not scan_type_stats:
-            print(f"Missing file {type_file}")
-            return
-        scan_type = scan_type_stats["scan_type"]
-
-        if scan_type in ["1", "2", "4", "5"]:
-            stats = read_json_file(stats_file)
-            if not stats:
-                print(f"Could not read {stats_file}")
-                return
-
-            original_aorta_volume = stats["original_aorta_volume"]
-            aorta_lumen = stats["aorta_lumen"]
-            calcification_volume = stats["calcification_volume"]
-            if aorta_lumen < 1:
-                print(f"Something wrong with {stats_file} aorta_lumen={aorta_lumen}")
-                return
-
-            tot_vol = aorta_lumen + calcification_volume
-            ratio = original_aorta_volume / tot_vol
-            dif_percent = abs(original_aorta_volume - tot_vol) / tot_vol * 100.0
-            q95_dists = stats["q95_distances"]
-            self.message_text += "\nAneurysm sac info:\n"
-            self.message_text += f"Ratio: {ratio:.2f}\n"
-            self.message_text += f"Enlarged percent: {dif_percent:.0f}%\n"
-            self.message_text += f"Q95 distances: {q95_dists:0.1f} mm\n"
-            if ratio > 1.18 and q95_dists > 2.5:
-                self.message_text += f"Indication of aneurysm sac!\n"
-        else:
-            print(
-                f"Can not set aortic aneurysm sac statistics for scan type: {scan_type}"
-            )
-
-    def set_aortic_calcification_statistics(self, stats_folder):
-        type_file = f"{stats_folder}aorta_scan_type.json"
-        stats_file = f"{stats_folder}aorta_calcification_stats.json"
-
-        if not os.path.exists(type_file):
-            print(f"Missing file {type_file}")
-            return
-
-        scan_type_stats = read_json_file(type_file)
-        if not scan_type_stats:
-            print(f"Missing file {type_file}")
-            return
-        scan_type = scan_type_stats["scan_type"]
-
-        if scan_type in ["1", "2", "5", "4"]:
-            stats = read_json_file(stats_file)
-            if not stats:
-                print(f"Could not read {stats_file}")
-                return
-
-            # aorta_stats = pt.read_json_file(tot_stats_file)
-            # if aorta_stats is None:
-            #     print(f"Found no stats file {tot_stats_file}")
-            #     return
-
-            calcification_volume = stats["calcification_volume"]
-            aorta_lumen_volume = stats["aorta_lumen_volume"]
-            # total_volume = aorta_stats["tot_vol"]
-
-            self.message_text += "\nCalcification info:\n"
-            self.message_text += (
-                f"Calcified volume: {calcification_volume / 1000.0:.1f} cm3\n"
-            )
-            self.message_text += (
-                f"Lumen volume: {aorta_lumen_volume / 1000.0:.1f} cm3\n"
-            )
-            if aorta_lumen_volume > 0:
-                ratio = calcification_volume / aorta_lumen_volume * 100
-                self.message_text += f"Percent of total: {ratio:.2f}%\n"
-        else:
-            print(f"Can not set calcification statistics for scan type: {scan_type}")
-
-    def set_precomputed_straight_longitudinal_slices(self, cl_folder):
-        """
-        Here the longitudinal are precomputed as png files
-        """
-        plane_file_1 = f"{cl_folder}straight_volume_mid_cut.png"
-        plane_file_2 = f"{cl_folder}straight_volume_mid_cut_2.png"
-
-        png_reader = vtk.vtkPNGReader()
-        if not png_reader.CanReadFile(plane_file_1):
-            print(f"Can not read {plane_file_1}")
-            return
-        png_reader.SetFileName(plane_file_1)
-        png_reader.Update()
-
-        image_viewer = vtk.vtkImageViewer2()
-        image_viewer.SetInputConnection(png_reader.GetOutputPort())
-        image_viewer.SetRenderWindow(self.ren_win)
-        image_viewer.SetRenderer(self.ren_straight_1)
-        image_viewer.Render()
-
-        self.ren_straight_1.GetActiveCamera().ParallelProjectionOn()
-        self.ren_straight_1.ResetCameraScreenSpace()
-
-        png_reader = vtk.vtkPNGReader()
-        if not png_reader.CanReadFile(plane_file_2):
-            print(f"Can not read {plane_file_2}")
-            return
-        png_reader.SetFileName(plane_file_2)
-        png_reader.Update()
-
-        image_viewer = vtk.vtkImageViewer2()
-        image_viewer.SetInputConnection(png_reader.GetOutputPort())
-        image_viewer.SetRenderWindow(self.ren_win)
-        image_viewer.SetRenderer(self.ren_straight_2)
-        image_viewer.Render()
-
-        self.ren_straight_2.GetActiveCamera().ParallelProjectionOn()
-        self.ren_straight_2.ResetCameraScreenSpace()

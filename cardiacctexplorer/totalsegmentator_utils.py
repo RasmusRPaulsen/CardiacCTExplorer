@@ -1,11 +1,12 @@
+"""Utils for running TotalSegmentator segmentations"""
 import os
-from totalsegmentator.python_api import totalsegmentator
 import time
 import multiprocessing as mp
-import cardiacctexplorer.general_utils as gu
-import cardiacctexplorer.io_utils as io_utils
 import SimpleITK as sitk
 import numpy as np
+from totalsegmentator.python_api import totalsegmentator
+import cardiacctexplorer.general_utils as gu
+import cardiacctexplorer.io_utils as io_utils
 
 
 def do_totalsegmentator(params):
@@ -54,7 +55,6 @@ def do_totalsegmentator(params):
     # Process image in 3 chunks for less memory consumption
     force_split = False
     run_quit = quiet
-    verbose = verbose
     multi_label = True
 
     if not os.path.exists(total_out_name):

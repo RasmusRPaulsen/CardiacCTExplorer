@@ -1,10 +1,11 @@
+"""Utility functions for I/O operations"""
 import tempfile
 from pathlib import Path
+from functools import cache
+import os
 import nibabel as nib
 import SimpleITK as sitk
 from cardiacctexplorer.general_utils import write_message_to_log_file
-from functools import cache
-import os
 
 
 def read_nifti_file_robustly(image_file: str):

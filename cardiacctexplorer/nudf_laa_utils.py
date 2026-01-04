@@ -1,18 +1,18 @@
+"""Utilities to compute left atrial appendage segmentation using the NUDF model"""
 import os
-from scipy.ndimage import measurements
 from pathlib import Path
 import time
+import json
 import multiprocessing as mp
+import SimpleITK as sitk
+import numpy as np
+from scipy.ndimage import measurements
+from torch.utils.model_zoo import load_url
+from totalsegmentator.python_api import select_device
 import cardiacctexplorer.general_utils as gu
 import cardiacctexplorer.io_utils as io_utils
 import cardiacctexplorer.segmentation_utils as su
 from cardiacctexplorer.nudf_predictor import NUDFPredictor
-import SimpleITK as sitk
-import numpy as np
-import json
-from vtk.util.numpy_support import vtk_to_numpy
-from torch.utils.model_zoo import load_url
-from totalsegmentator.python_api import select_device
 
 
 def compute_mask_hu_statistics(ct_img_np, mask, spacing, anatomy_name, segm_name, params, hu_stats):
@@ -40,7 +40,7 @@ def compute_mask_hu_statistics(ct_img_np, mask, spacing, anatomy_name, segm_name
         if not quiet:
             print(msg)
         if write_log_file:
-            write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
+            gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
     hu_vals = ct_img_np[mask_eroded]
@@ -180,7 +180,7 @@ def extract_laa_roi(params):
 
     components = su.get_components_over_certain_size_as_individual_volumes(laa_mask, min_comp_size_vox, 1)
     if components is None or len(components) == 0:
-        msg = f"Could not find any components of size > {min_comp_size_mm3} mm3 in {segm_in_name}"
+        msg = f"Could not find any components of size > {min_comp_size_mm3} mm3 in {segm_name_total}"
         if not quiet:
             print(msg)
         if write_log_file:
@@ -290,7 +290,7 @@ def predict_laa_with_nudf(params):
     # HU normalization
     crop_normalized = np.clip(crop_img_np, -1000, 1000) / 1000
     # Reshape to add channel dimension
-    input = np.expand_dims(crop_normalized, axis=0)
+    input_data = np.expand_dims(crop_normalized, axis=0)
 
     # TODO: Get from config
     resolution = 128
@@ -302,14 +302,14 @@ def predict_laa_with_nudf(params):
     if verbose:
         print("Setting up NUDF model")
     if not nudf_predictor.setup_model():
-        msg = f"Could not set up NUDF model for LAA prediction."
+        msg = "Could not set up NUDF model for LAA prediction."
         if not quiet:
             print(msg)
         if write_log_file:
             gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
-    data = {'inputs': np.array(input, dtype=np.float32)}
+    data = {'inputs': np.array(input_data, dtype=np.float32)}
 
     if verbose:
         print("Running NUDF prediction")
@@ -346,7 +346,7 @@ def predict_laa_with_nudf(params):
 
     components = su.get_components_over_certain_size_as_individual_volumes(laa_label_np, min_comp_size_vox, 1)
     if components is None or len(components) == 0:
-        msg = f"Could not find any components of size > {min_comp_size_mm3} mm3 in {segm_in_name}"
+        msg = f"Could not find any components of size > {min_comp_size_mm3} mm3 in {segm_name_total}"
         if not quiet:
             print(msg)
         if write_log_file:
@@ -390,7 +390,7 @@ def predict_laa_with_nudf(params):
     laa_label_np = laa_resampled_np == 1
     components = su.get_components_over_certain_size_as_individual_volumes(laa_label_np, min_comp_size_vox, 1)
     if components is None or len(components) == 0:
-        msg = f"Could not find any components of size > {min_comp_size_mm3} mm3 in {segm_in_name}"
+        msg = f"Could not find any components of size > {min_comp_size_mm3} mm3 in {segm_name_total}"
         if not quiet:
             print(msg)
         if write_log_file:
@@ -449,7 +449,7 @@ def do_nudf_laa(params):
             success = predict_laa_with_nudf(params)
     except Exception as e:
         msg = "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"
-        msg += f"Exception during NUDF LAA analysis of {scan_id}: {str(e)}\n"
+        msg += f"Exception during NUDF LAA analysis of {input_file}: {str(e)}\n"
         msg += "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"
         if not quiet:
             print(msg)
@@ -483,10 +483,10 @@ def computer_process(params, output_folder, process_queue, process_id):
         time_left_str = gu.display_time(int(est_time_left))
         time_elapsed_str = gu.display_time(int(elapsed_time))
         if verbose:
-            print(f"=================================================================================================")
+            print("=================================================================================================")
             print(f"Process {process_id} done with {input_file} - took {time_elapsed_str}.\n"
                   f"Time left {time_left_str} for {q_size} scans (if {n_proc} processes alive)")
-            print(f"=================================================================================================")
+            print("=================================================================================================")
         stats_folder = params["stats_folder"]
         time_stats_out = f"{stats_folder}nudf_laa_proc_time.txt"
         with open(time_stats_out, "w") as f:
@@ -516,7 +516,7 @@ def setup_nudf_folder_and_get_checkpoint(params):
         if verbose:
             print(f"NUDF checkpoint file already exists: {checkpoint_file}")
         return params
-    if not(os.path.exists(nudf_model_folder)):
+    if not os.path.exists(nudf_model_folder):
         os.makedirs(nudf_model_folder)
     if verbose:
         print(f"Downloading NUDF model checkpoint from {nudf_model_url} to {checkpoint_file}")

@@ -1,3 +1,4 @@
+"""General utility functions"""
 import os
 import glob
 from typing import List, Union, Tuple
@@ -120,7 +121,7 @@ def gather_input_files_from_input(in_name: Union[str, Path], recurse_subfolders=
         in_files += glob.glob(f"{in_name}/**/*.nii.gz", recursive=True)
 
         # now recursively search for non-empty subdirectories. These can contain DICOM files
-        for root, dirs, files in os.walk(in_name):
+        for root, dirs, _ in os.walk(in_name):
             for d in dirs:
                 full_d = os.path.join(root, d)
                 if os.path.isdir(full_d):

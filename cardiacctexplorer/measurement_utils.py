@@ -1,8 +1,9 @@
+"""Utility functions to gather measurements from multiple scans."""
 import os.path
-import cardiacctexplorer.general_utils as gu
 import shutil
 from pathlib import Path
 from datetime import datetime
+import cardiacctexplorer.general_utils as gu
 
 def flatten_json(y):
     out = {}
