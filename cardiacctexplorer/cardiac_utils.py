@@ -927,7 +927,7 @@ def create_image_slices_from_segmentation(params):
     segm_in_name = f"{segm_folder}cardiac_combined_segmentation.nii.gz"
     base_name_out = f"{segm_folder}cardiac_segmentation"
     check_name = f"{base_name_out}_slice_1_rgb_crop.png"
-    segm_id = params.get("segment_id_to_slice",8)
+    segm_id = params.get("segment_id_to_slice", 8)
 
     if os.path.exists(check_name):
         if not quiet:
@@ -1101,15 +1101,15 @@ def visualize_cardiac_data(params):
         print(f"Creating visualization {vis_file}")
 
     label_img = io_utils.read_nifti_with_logging_cached(segm_name_in, verbose, quiet, write_log_file, output_folder)
-    if label_img is None:
-        return False
+    # if label_img is None:
+    #     return False
 
     ct_img = io_utils.read_nifti_with_logging_cached(input_file, verbose, quiet, write_log_file, output_folder)
     if ct_img is None:
         return False
 
     mask_image = None
-    if mask_with_cardiac_segmentation:
+    if mask_with_cardiac_segmentation and label_img is not None:
         mask_image = cardiac_mask_out
         #if not os.path.exists(cardiac_mask_out):
         generate_cardiac_mask(label_img, cardiac_mask_out)
@@ -1238,8 +1238,9 @@ def do_cardiac_analysis(params):
         success = check_for_partial_organs(params)
     if success:
         success = create_image_slices_from_segmentation(params)
-    if success:
-        success = visualize_cardiac_data(params)
+
+    # Visualize data even if some of the previous steps failed
+    success = visualize_cardiac_data(params)
 
     # We gather all statistcs even if some of the previous steps failed
     success = gather_all_statistics(params)
@@ -1345,7 +1346,7 @@ def cardiac_analysis(in_files, output_folder, params):
     for fname in in_files:
         params = gu.set_and_create_folders(fname, output_folder, params)
         stats_folder = params["stats_folder"]
-        stats_file = f"{stats_folder}/cardiac_statistics.json"
+        stats_file = f"{stats_folder}/all_cardiac_statistics.json"
         if not os.path.exists(stats_file):
             files_to_process.append(fname)
     if verbose:

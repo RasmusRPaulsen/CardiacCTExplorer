@@ -325,11 +325,12 @@ class RenderCardiacData(RenderTotalSegmentatorData):
         if tool_version is not None and tool_version != "":
             self.message_text += f"CardiacCTExplorer version: {tool_version}\n"
 
-        self.generate_actors_from_segment_itk_labelmap(label_img, 1,"LightBlue", 0.2)
-        self.generate_actors_from_segment_itk_labelmap(label_img, 2,"DarkSlateBlue", 1.0, smooth="medium")
-        self.generate_actors_from_segment_itk_labelmap(label_img, 3,"DarkRed", 1.0, smooth="medium")
-        self.generate_actors_from_segment_itk_labelmap(label_img, 8,"DarkOliveGreen", 1.0, smooth="medium")
-        self.generate_actors_from_segment_itk_labelmap(label_img, 9,"LightCoral", 0.4, smooth="medium")
+        if label_img is not None:
+            self.generate_actors_from_segment_itk_labelmap(label_img, 1,"LightBlue", 0.2)
+            self.generate_actors_from_segment_itk_labelmap(label_img, 2,"DarkSlateBlue", 1.0, smooth="medium")
+            self.generate_actors_from_segment_itk_labelmap(label_img, 3,"DarkRed", 1.0, smooth="medium")
+            self.generate_actors_from_segment_itk_labelmap(label_img, 8,"DarkOliveGreen", 1.0, smooth="medium")
+            self.generate_actors_from_segment_itk_labelmap(label_img, 9,"LightCoral", 0.4, smooth="medium")
         self.viewport_3d_1 = [0.0, 0.0, 0.35, 0.5]
         self.viewport_3d_2 = [0.0, 0.5, 0.35, 1.0]
         self.viewport_3d_3 = [0.35, 0.0, 0.70, 0.5]

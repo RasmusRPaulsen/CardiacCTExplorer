@@ -1,35 +1,10 @@
+"""Command line interface for CardiacCTExplorer - Segment and analyse the heart in CT images."""
 #!/usr/bin/env python
 import argparse
 import importlib.metadata
 from pathlib import Path
-import re
+from totalsegmentator.python_api import validate_device_type_api
 from cardiacctexplorer.python_api import cardiacctexplorer, get_default_parameters
-
-
-def validate_device_type_api(value):
-    valid_strings = ["gpu", "cpu", "mps"]
-    if value in valid_strings:
-        return value
-
-    # Check if the value matches the pattern "gpu:X" where X is an integer
-    pattern = r"^gpu:(\d+)$"
-    match = re.match(pattern, value)
-    if match:
-        device_id = int(match.group(1))
-        return value
-
-    raise ValueError(
-        f"Invalid device type: '{value}'. Must be 'gpu', 'cpu', 'mps', or 'gpu:X' where X is an integer representing the GPU device ID."
-    )
-
-
-def validate_device_type(value):
-    try:
-        return validate_device_type_api(value)
-    except ValueError:
-        raise argparse.ArgumentTypeError(
-            f"Invalid device type: '{value}'. Must be 'gpu', 'cpu', 'mps', or 'gpu:X' where X is an integer representing the GPU device ID."
-        )
 
 
 def main():
@@ -86,7 +61,7 @@ def main():
     parser.add_argument(
         "-d",
         "--device",
-        type=validate_device_type,
+        type=validate_device_type_api,
         default="gpu",
         help="Device type: 'gpu', 'cpu', 'mps', or 'gpu:X' where X is an integer representing the GPU device ID.",
     )
@@ -101,7 +76,7 @@ def main():
 
     parser.add_argument(
         "-ic",
-        "--image-cas-mode",
+        "--image_cas_mode",
         action="store_true",
         help="Assume that the input is the ImageCAS dataset and include these labels in the analysis",
         default=False,
@@ -183,7 +158,7 @@ def main():
 
     parser.add_argument(
         "-ss",
-        "--segment-id-to-slice",
+        "--segment_id_to_slice",
         type=int,
         help="Which segment ID to use for slice extraction visualization",
         default=8,
@@ -209,37 +184,33 @@ def main():
     parser.add_argument(
         "--version",
         action="version",
-        version=importlib.metadata.version("AortaExplorer"),
+        version=importlib.metadata.version("CardiacCTExplorer"),
+        help="Show program version and exit",
     )
 
     args = parser.parse_args()
 
-    # Get default aorta parameters and update with any user provided parameters
-    aorta_parms = get_default_parameters()
-    aorta_parms["num_proc_total_segmentator"] = args.nr_ts
-    aorta_parms["num_proc_general"] = args.nr_proc
-    aorta_parms["out_of_reconstruction_value"] = args.out_hu
-    aorta_parms["forced_aorta_min_hu_value"] = args.forced_min_hu
-    aorta_parms["forced_aorta_max_hu_value"] = args.forced_max_hu
-    aorta_parms["aorta_min_hu_value"] = args.low_hu
-    aorta_parms["aorta_min_max_hu_value"] = args.max_hu
-    aorta_parms["aorta_calcification_min_hu_value"] = args.calc_low_hu
-    aorta_parms["aorta_calcification_max_hu_value"] = args.calc_max_hu
-    aorta_parms["compute_centerline_from_ts_segmentation"] = not args.no_ts_centerline
-    aorta_parms["compare_with_totalsegmentator"] = args.compare_with_ts
-    aorta_parms["rendering_window_size"] = [args.image_x_size, args.image_y_size]
-    aorta_parms["hounsfield_unit_offset"] = args.hu_offset
-    aorta_parms["recurse_subfolders"] = args.recurse
+    # Get default parameters and update with any user provided parameters
+    cardiac_parms = get_default_parameters()
+    cardiac_parms["num_proc_total_segmentator"] = args.nr_ts
+    cardiac_parms["num_proc_general"] = args.nr_proc
+    cardiac_parms["num_proc_nudf"] = args.nr_tn
+    cardiac_parms["out_of_reconstruction_value"] = args.out_hu
+    cardiac_parms["minimum_laa_hu_value"] = args.low_laa_hu
+    cardiac_parms["minimum_pv_hu_value"] = args.low_pv_hu
+    cardiac_parms["minimum_aorta_hu_value"] = args.low_aorta_hu
+    cardiac_parms["minimum_coronary_artery_hu_value"] = args.low_ca_hu
+    cardiac_parms["image_cas_mode"] = args.image_cas_mode
+    cardiac_parms["segment_id_to_slice"] = args.segment_id_to_slice
+    cardiac_parms["rendering_window_size"] = [args.image_x_size, args.image_y_size]
+    cardiac_parms["hounsfield_unit_offset"] = args.hu_offset
+    cardiac_parms["recurse_subfolders"] = args.recurse
+    cardiac_parms["device"] = args.device
+    cardiac_parms["verbose"] = args.verbose
+    cardiac_parms["quiet"] = args.quiet
+    cardiac_parms["write_log_file"] = not args.logfile
 
-    aortaexplorer(
-        str(args.input),
-        str(args.output) + "/",
-        aorta_parms,
-        device=args.device,
-        verbose=args.verbose,
-        quiet=args.quiet,
-        write_log_file=not args.logfile,
-    )
+    cardiacctexplorer(str(args.input), str(args.output) + "/", cardiac_parms)
 
 
 if __name__ == "__main__":

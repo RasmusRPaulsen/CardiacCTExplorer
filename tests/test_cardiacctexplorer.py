@@ -169,6 +169,7 @@ def test_cardiacctexplorer():
 
     # input_file = "C:/data/CardiacCTExplorer/ImageCAS-in/"
     input_file = "C:/data/CoronaryArteries/ImageCAS/volumes/"
+    # input_file = "C:/data/CoronaryArteries/ImageCAS/volumes/2.img.nii.gz"
     params["image_cas_mode"] = True
     # input_file = "C:/data/CardiacCTExplorer/input/3.img.nii.gz"
     # input_file = "C:/data/CardiacCTExplorer/input/"
