@@ -1,7 +1,7 @@
+"""Model for NUDF"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
 
 # 1D convolution is used for the decoder. It acts as a standard FC, but allows to use a batch of point samples features,
 # additionally to the batch over the input objects.
@@ -10,10 +10,8 @@ import numpy as np
 # kernel_size = 1 i.e. every convolution is done over only all features of one point sample, this makes it a FC.
 
 
-# ShapeNet Voxel Super-Resolution --------------------------------------------------------------------
-# ----------------------------------------------------------------------------------------------------
+# ShapeNet Voxel Super-Resolution
 class ShapeNet32Vox(nn.Module):
-
     def __init__(self, hidden_dim=256):
         super(ShapeNet32Vox, self).__init__()
 
