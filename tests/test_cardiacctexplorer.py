@@ -1,6 +1,7 @@
-from cardiacctexplorer.python_api import cardiacctexplorer, get_default_parameters
+"""Test cardiacctexplorer function with various input files and parameters."""
 import os
 import re
+from cardiacctexplorer.python_api import cardiacctexplorer, get_default_parameters
 
 def remove_list_of_files(file_list):
     for file_path in file_list:
@@ -10,10 +11,10 @@ def remove_list_of_files(file_list):
             pass
 
 
-def purge(dir, pattern):
-    for f in os.listdir(dir):
+def purge(folder, pattern):
+    for f in os.listdir(folder):
         if pattern == "" or re.search(pattern, f):
-            os.remove(os.path.join(dir, f))
+            os.remove(os.path.join(folder, f))
 
 
 def test_cardiacctexplorer():
@@ -183,7 +184,7 @@ def test_cardiacctexplorer():
     # output_folder = "C:/data/CardiacCTExplorer/ASOCA-output/"
     # params["num_proc_general"] = 1
 
-    success = cardiacctexplorer(input_file, output_folder, params)
+    cardiacctexplorer(input_file, output_folder, params)
 
 
 if __name__ == "__main__":
