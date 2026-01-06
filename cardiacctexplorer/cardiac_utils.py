@@ -7,7 +7,7 @@ import importlib.metadata
 import numpy as np
 import edt
 import SimpleITK as sitk
-from skimage.morphology import binary_closing, binary_opening, ball
+from skimage.morphology import closing, opening, ball
 import cardiacctexplorer.general_utils as gu
 import cardiacctexplorer.io_utils as io_utils
 import cardiacctexplorer.segmentation_utils as su
@@ -558,9 +558,9 @@ def refine_pulmonary_veins(params):
             if iteration == 2:
                 radius = 1
             footprint = ball(radius=radius)
-            new_refined_mask = binary_opening(new_refined_mask, footprint)
+            new_refined_mask = opening(new_refined_mask, footprint)
             footprint = ball(radius=3)
-            new_refined_mask = binary_closing(new_refined_mask, footprint)
+            new_refined_mask = closing(new_refined_mask, footprint)
 
         min_comp_size_mm = 1000  # in mm3
         min_comp_size_vox = int(min_comp_size_mm / (spacing[0] * spacing[1] * spacing[2]))
@@ -656,9 +656,9 @@ def combine_low_and_high_res_aorta(params):
     refined_segm = combined
     if do_morpho:
         footprint = ball(radius=3)
-        refined_segm = binary_opening(combined, footprint)
+        refined_segm = opening(combined, footprint)
         footprint = ball(radius=3)
-        refined_segm = binary_closing(refined_segm, footprint)
+        refined_segm = closing(refined_segm, footprint)
 
     # We want at least 5 cubic centimeter
     min_comp_size_mm3 = 5000
@@ -768,9 +768,9 @@ def refine_coronary_artery_aorta_overlap(params):
     if do_morpho:
         radius = 1
         footprint = ball(radius=radius)
-        new_refined_mask = binary_opening(new_refined_mask, footprint)
+        new_refined_mask = opening(new_refined_mask, footprint)
         footprint = ball(radius=3)
-        new_refined_mask = binary_closing(new_refined_mask, footprint)
+        new_refined_mask = closing(new_refined_mask, footprint)
 
     min_comp_size_mm = 100  # in mm3
     min_comp_size_vox = int(min_comp_size_mm / (spacing[0] * spacing[1] * spacing[2]))

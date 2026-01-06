@@ -43,17 +43,18 @@ def compute_mask_hu_statistics(ct_img_np, mask, spacing, anatomy_name, segm_name
             gu.write_message_to_log_file(base_dir=output_folder, message=msg, level="error")
         return False
 
+    # Need to cast into floats and ints to avoid types that can not be written to JSON
     hu_vals = ct_img_np[mask_eroded]
     hu_stats[f"{anatomy_name}_vox_count"] = len(hu_vals)
-    hu_stats[f"{anatomy_name}_hu_mean"] = np.mean(hu_vals)
-    hu_stats[f"{anatomy_name}_hu_std"] = np.std(hu_vals)
-    hu_stats[f"{anatomy_name}_hu_med"] = np.median(hu_vals)
+    hu_stats[f"{anatomy_name}_hu_mean"] = float(np.mean(hu_vals))
+    hu_stats[f"{anatomy_name}_hu_std"] = float(np.std(hu_vals))
+    hu_stats[f"{anatomy_name}_hu_med"] = int(np.median(hu_vals))
     hu_stats[f"{anatomy_name}_hu_min"] = int(np.min(hu_vals))
     hu_stats[f"{anatomy_name}_hu_max"] = int(np.max(hu_vals))
-    hu_stats[f"{anatomy_name}_hu_q01"] = np.percentile(hu_vals, 1)
-    hu_stats[f"{anatomy_name}_hu_q99"] = np.percentile(hu_vals, 99)
-    hu_stats[f"{anatomy_name}_hu_q001"] = np.percentile(hu_vals, 0.1)
-    hu_stats[f"{anatomy_name}_hu_q999"] = np.percentile(hu_vals, 99.9)
+    hu_stats[f"{anatomy_name}_hu_q01"] = int(np.percentile(hu_vals, 1))
+    hu_stats[f"{anatomy_name}_hu_q99"] = int(np.percentile(hu_vals, 99))
+    hu_stats[f"{anatomy_name}_hu_q001"] = int(np.percentile(hu_vals, 0.1))
+    hu_stats[f"{anatomy_name}_hu_q999"] = int(np.percentile(hu_vals, 99.9))
     return True
 
 
@@ -476,7 +477,7 @@ def computer_process(params, output_folder, process_queue, process_id):
         local_start_time = time.time()
         params = gu.set_and_create_folders(input_file, output_folder, params)
         do_nudf_laa(params)
-        n_proc = params["num_proc_general"]
+        n_proc = params["num_proc_nudf"]
         elapsed_time = time.time() - local_start_time
         q_size = process_queue.qsize()
         est_time_left = q_size * elapsed_time / n_proc
