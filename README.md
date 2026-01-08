@@ -103,7 +103,7 @@ If you can not find your expected segmentation maps, you should check the log fi
 
 The CardiacCTExplorer commandline accept a set of arguments.
 
-See [here](CardiacCTexplorer/bin/CardiacCTExplorer.py) for the total set of command line parameters.
+See [here](cardiacctexplorer/bin/CardiacCTExplorer.py) for the total set of command line parameters.
 
 ## Python API
 
@@ -124,7 +124,7 @@ if __name__ == "__main__":
     test_cardiacctexplorer()
 ```
 
-The `params` is a dictionary, where the individual values can be changed before the call to CardiacCTexplorer. The parameters can be seen [here](CardiacCTexplorer/python_api.py).
+The `params` is a dictionary, where the individual values can be changed before the call to CardiacCTexplorer. The parameters can be seen [here](cardiacctexplorer/python_api.py).
 
 
 ## Cardiac segments and measurements
@@ -147,7 +147,7 @@ CardiacCTExplorer generates a segmentation map, with the following labels:
 
 ## Check for partial structures
 
-In the CSV file with measurements it is also noted which structures that touches the side of the scan. The aorta will always touch the scan in a cardiac scan. If the left atrial appendage touches the scan, great care should be taken if the LAA is used in any type of geometric analysis. The algorithm uses a value that marks *out-of-reconstruction*. This is typically set by the scanner reconstruction software and ideally should be -2048 or below. This value can be set using the [commandline parameters](CardiacCTexplorer/bin/CardiacCTExplorer.py). Please never use -1024 as a default value when resampling scans, since air (or lungs) will sometimes also have this value (use -2048).
+In the CSV file with measurements it is also noted which structures that touches the side of the scan. The aorta will always touch the scan in a cardiac scan. If the left atrial appendage touches the scan, great care should be taken if the LAA is used in any type of geometric analysis. The algorithm uses a value that marks *out-of-reconstruction*. This is typically set by the scanner reconstruction software and ideally should be -2048 or below. This value can be set using the [commandline parameters](cardiacctexplorer/bin/CardiacCTExplorer.py). Please never use -1024 as a default value when resampling scans, since air (or lungs) will sometimes also have this value (use -2048).
 
 
 ## Error handling and pathological cases
