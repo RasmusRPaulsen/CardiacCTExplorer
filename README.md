@@ -9,7 +9,7 @@ An open source tool for segmentation of the heart in 3D computed tomography scan
 - Based on the excellent work of the [TotalSegmentator](https://github.com/wasserth/TotalSegmentator) team.
 - Supports contrast-enhanced cardiac CT scans.
 - Creates a segmentation map including the major heart structures, the left atrial appendage and the pulmonary veins.
-- Can generate the date described in [STACOM2025: A Public Cardiac CT Dataset Featuring the Left Atrial Appendage](https://github.com/Bjonze/Public-Cardiac-CT-Dataset)
+- Can generate the data described in [STACOM2025: A Public Cardiac CT Dataset Featuring the Left Atrial Appendage](https://github.com/Bjonze/Public-Cardiac-CT-Dataset)
 - Has been validated on a series of open source data sets.
 - Generates visualizations for easy validation of outputs.
 - Designed as a research tool for population studies.
@@ -26,7 +26,7 @@ Please cite these papers if you use CardiacCTExplorer:
   booktitle={International Conference on Medical Image Computing and Computer-Assisted Intervention},
   pages={405--415},
   year={2021},
-  organization={Springer}
+  publisher={Springer}
 }
 
 @inproceedings{Hansen2025LAA,
@@ -61,7 +61,7 @@ conda activate CardiacCTExplorerEnv
 pip install CardiacCTExplorer
 ```
 
-3. Install the [TotalSegmentator license](https://github.com/wasserth/TotalSegmentator/blob/master/README.md#subtasks). CardiacCTExplorer is dependent on the `heartchambers_highres`subtask and you need to obtain the [license](https://backend.totalsegmentator.com/license-academic/) and install the license key.
+3. Install the [TotalSegmentator license](https://github.com/wasserth/TotalSegmentator/blob/master/README.md#subtasks). CardiacCTExplorer is dependent on the `heartchambers_highres` subtask and you need to obtain the [license](https://backend.totalsegmentator.com/license-academic/) and install the license key.
 
 
 ## Usage
@@ -79,33 +79,29 @@ CardiacCTExplorer can process:
  
  
 ```bash
-CardiacCTExplorer -i /data/CardiacCT/CardiacCT_scan.nii.gz -o /data/CardiacCT/CardiacCTExplorerOutput/
+CardiacCTExplorer -i /data/CardiacCT/CardiacCT_scan.nii.gz -o /data/CardiacCT/CardiacCTExplorerOutput/ --verbose
 ```
 
 Will process the NIFTI file `CardiacCT_scan.nii.gz` and create a sub-folder with results in the specified output folder `/data/CardiacCT/CardiacCTExplorerOutput/`.
 
-If the input is a folder, it will process all `.nii.gz` and `.nii` files in that folder. If the input is the name of a text file, it will process all files (specified with full path names) listed in the text file. Note when processing several files, they all need to have unique base names, since the output will named according to this.
+If the input is a folder, it will process all `.nii.gz`, `.nrrd`, and `.nii` files in that folder. If the input is the name of a text file, it will process all files (specified with full path names) listed in the text file. Note when processing several files, they all need to have unique base names, since the output will named according to this.
 
-**Expected processing time**: CardiacCTExplore is not optimized for speed. On a standard PC (October 2025) the processing time is between 5 and 10 minutes per scan. However, it can process several scans simultanously using multiprocessing and it scales well with the number of cores. 
+**Expected processing time**: CardiacCTExplorer is not optimized for speed. On a standard PC (January 2026) the processing time is between 5 and 10 minutes per scan. However, it can process several scans simultanously using multiprocessing and it scales well with the number of cores. 
 
 ## Outputs
 
 CardiacCTExplorer main outputs are:
-- [CSV file with the aortic measurements](MEASUREMENTS.md). It is called `CardiacCTExplorer_measurements.csv` and will be placed in the specified output folder. One row per input file.
+- CSV file with some simple measurements. It is called `CardiacCTExplorer_measurements.csv` and will be placed in the specified output folder. One row per input file.
 - Visualizations of the results placed in a sub-folder called `all_visualizations`.
+- Segmentation masks placed in a sub-folder called `all_segmentations`.
 - A log file with potential errors and warnings placed in the specified output folder.
 
-If you can not find your expected measurements in the CSV file, you should check the log file to see if there are any reported errors.
+If you can not find your expected segmentation maps, you should check the log file to see if there are any reported errors.
 
-**NOTE**: CardiacCTExplorer is not a diagnostic tool and does not check for aortic pathologies like aneurysms. 
 
 ## Advanced settings
 
-The CardiacCTExplorer commandline accept a set of arguments:
-
-- `--device`: Choose `cpu` or `gpu` or `gpu:X (e.g., gpu:1 -> cuda:1)` see [TotalSegmentor](https://github.com/wasserth/TotalSegmentator/blob/master/README.md#advanced-settings) for details 
-- `--image-x-size` : Visualization image x-side length (default 1920).
-- `--image-y-size` : Visualization image y-side length (default 1080).
+The CardiacCTExplorer commandline accept a set of arguments.
 
 See [here](CardiacCTexplorer/bin/CardiacCTExplorer.py) for the total set of command line parameters.
 
@@ -114,22 +110,18 @@ See [here](CardiacCTexplorer/bin/CardiacCTExplorer.py) for the total set of comm
 CardiacCTExplorer can be used as a Python API. For Example:
 
 ```Python
-from CardiacCTexplorer.python_api import CardiacCTexplorer, get_default_parameters
+from cardiacctexplorer.python_api import cardiacctexplorer, get_default_parameters
 
-def test_CardiacCTexplorer():
+def test_cardiacctexplorer():
     params = get_default_parameters()
 
     input_file = "/data/CardiacCT/CardiacCT_scan.nii.gz"
     output_folder = "/data/CardiacCT/CardiacCTExplorerOutput/"
-    device = "gpu"
-    verbose = True
-    quiet = False
-
-    success = CardiacCTexplorer(input_file, output_folder, params, device=device, verbose=verbose, quiet=quiet)
-    assert success, "CardiacCTExplorer failed to run successfully"
+    
+	cardiacctexplorer(input_file, output_folder, params)
 
 if __name__ == "__main__":
-    test_CardiacCTexplorer()
+    test_cardiacctexplorer()
 ```
 
 The `params` is a dictionary, where the individual values can be changed before the call to CardiacCTexplorer. The parameters can be seen [here](CardiacCTexplorer/python_api.py).
@@ -139,11 +131,54 @@ The `params` is a dictionary, where the individual values can be changed before 
 
 CardiacCTExplorer generates a segmentation map, with the following labels:
 
+
+- 0 : **Background**
+- 1 : **Myocardium** : The muscle tissue surrounding the left ventricle blood pool
+- 2 : **LA** : The left atrium blood pool
+- 3 : **LV** : The left ventricle blood pool including the papilary muscles and trabeculation
+- 4 : **RA** : The right atrium blood pool
+- 5 : **RV** : The right ventricle blood pool
+- 6 : **Aorta** : The aorta including the aortic cusp
+- 7 : **PA** : The pulmonary artery
+- 8 : **LAA** : The left atrial appendage
+- 9 : **Coronary** : The left and right coronary arteries
+- 10 : **PV** : The pulmonary veins
+
+
+## Check for partial structures
+
+In the CSV file with measurements it is also noted which structures that touches the side of the scan. The aorta will always touch the scan in a cardiac scan. If the left atrial appendage touches the scan, great care should be taken if the LAA is used in any type of geometric analysis. The algorithm uses a value that marks *out-of-reconstruction*. This is typically set by the scanner reconstruction software and ideally should be -2048 or below. This value can be set using the [commandline parameters](CardiacCTexplorer/bin/CardiacCTExplorer.py). Please never use -1024 as a default value when resampling scans, since air (or lungs) will sometimes also have this value (use -2048).
+
+
 ## Error handling and pathological cases
 
-AortaExplorer includes a large range of checks for the validity and type of scan. It tries to determine the scan FOV case and only continues on the cases described above. There is also a range of checks on Hounsfield value distributions. If the processing fails, the log file should be inspected for the cause.
+CardiacCTExplorer includes a range of checks for the validity and type of scan.  If the processing fails, the log file should be inspected for the cause.
 
 
-### CardiacCTExplorer on ImageCAS
+## CardiacCTExplorer on ImageCAS
 
+CardiacCTExplorer can generate segmentation maps of the 
+[ImageCAS](https://www.sciencedirect.com/science/article/pii/S0895611123001052) dataset as described in [STACOM2025: A Public Cardiac CT Dataset Featuring the Left Atrial Appendage](https://github.com/Bjonze/Public-Cardiac-CT-Dataset).
 
+Follow this procedure to do this:
+1) Download [The ImageCAS data](https://www.kaggle.com/datasets/xiaoweixumedicalai/imagecas)
+
+2) Unpack all volumes and labelmaps into a folder.
+
+3) Run CardiacCTExplorer with the following commandline:
+
+```bash
+CardiacCTExplorer -i /data/ImageCAS/volumes/ -o /data/ImageCAS/CardiacCTExplorerOutput/ --verbose -ic
+```
+
+The `-ic` tells CardiacCTExplorer that it should work specifically with the ImageCAS data. It will:
+
+- Compute the TotalSegmentator heartchambers_highres segmentations
+- Predict the LAA using the [NUDF framework](https://link.springer.com/chapter/10.1007/978-3-030-87196-3_38)
+- Connect the pulmonary veins to the left atrium
+- Use the provided manual annotations of the coronary arteries from the ImageCAS data
+- Connect the coronary arteries to the aorta (if possible)
+- Threshold the coronary arteries so only voxels with a HU value above 20 are kept.
+
+Please note that the manual coronary artery segmentations provided by ImageCAS is of varying quality and sometime include coronary veins. They are, however, by far the most comprehensive open data set currently available.
+ 
