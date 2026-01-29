@@ -61,7 +61,7 @@ conda activate CardiacCTExplorerEnv
 pip install CardiacCTExplorer
 ```
 
-3. Install the [TotalSegmentator license](https://github.com/wasserth/TotalSegmentator/blob/master/README.md#subtasks). CardiacCTExplorer is dependent on the `heartchambers_highres` subtask and you need to obtain the [license](https://backend.totalsegmentator.com/license-academic/) and install the license key.
+4. Install the [TotalSegmentator license](https://github.com/wasserth/TotalSegmentator/blob/master/README.md#subtasks). CardiacCTExplorer is dependent on the `heartchambers_highres` subtask and you need to obtain the [license](https://backend.totalsegmentator.com/license-academic/) and install the license key.
 
 
 ## Usage
