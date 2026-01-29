@@ -14,7 +14,7 @@ An open source tool for segmentation of the heart in 3D computed tomography scan
 - Generates visualizations for easy validation of outputs.
 - Designed as a research tool for population studies.
 
-**Note**: This is not a medical device and is not intended for clinical usage. It is meant for research purposes and explorative analysis of the human aorta.
+**Note**: This is not a medical device and is not intended for clinical usage. It is meant for research purposes and explorative analysis of the human heart.
 
 It is based on work done at [DTU Compute](https://www.compute.dtu.dk/), the [Cardiovascular Research Unit, Rigshospitalet, Copenhagen, Denmark](https://www.rigshospitalet.dk/english/research-and-innovation/units-and-groups/Pages/cardiovascular-ct-research-unit.aspx) and [Universitat Pompeu Fabra](https://www.upf.edu/web/enginyeria/faculty/-/asset_publisher/vto8LcELdA46/content/camara-rey-oscar/maximized).
 
