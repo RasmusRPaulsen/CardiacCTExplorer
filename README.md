@@ -10,7 +10,7 @@ An open source tool for segmentation of the heart in 3D computed tomography scan
 - Supports contrast-enhanced cardiac CT scans.
 - Creates a segmentation map including the major heart structures, the left atrial appendage and the pulmonary veins.
 - Can generate the data described in [STACOM2025: A Public Cardiac CT Dataset Featuring the Left Atrial Appendage](https://github.com/Bjonze/Public-Cardiac-CT-Dataset)
-- Has been validated on a series of open source data sets.
+- Has been validated on a series of open source and some proprietary data sets.
 - Generates visualizations for easy validation of outputs.
 - Designed as a research tool for population studies.
 
@@ -144,6 +144,18 @@ CardiacCTExplorer generates a segmentation map, with the following labels:
 - 9 : **Coronary** : The left and right coronary arteries
 - 10 : **PV** : The pulmonary veins
 
+## What does it do?
+
+In the default (non ImageCAS) mode the framework broadly follows the following steps. This is explained in detail in the [STACOM 2025 paper](https://github.com/Bjonze/Public-Cardiac-CT-Dataset)
+
+- Computes the TotalSegmentator heartchambers_highres segmentations
+- Computes the TotalSegmentator coronary_arteries segmentations
+- Predicts the LAA using the [NUDF framework](https://link.springer.com/chapter/10.1007/978-3-030-87196-3_38)
+- Connects the pulmonary veins to the left atrium using a combination of distance fields, HU statistics and morphological operations.
+- Use the coronary artery segmentations from TotalSegmentator
+- Connects the coronary arteries to the aorta (if possible)
+- Thresholds the coronary arteries so only voxels with a HU value above 20 are kept.
+
 
 ## Check for partial structures
 
@@ -173,12 +185,12 @@ CardiacCTExplorer -i /data/ImageCAS/volumes/ -o /data/ImageCAS/CardiacCTExplorer
 
 The `-ic` tells CardiacCTExplorer that it should work specifically with the ImageCAS data. It will:
 
-- Compute the TotalSegmentator heartchambers_highres segmentations
-- Predict the LAA using the [NUDF framework](https://link.springer.com/chapter/10.1007/978-3-030-87196-3_38)
-- Connect the pulmonary veins to the left atrium
+- Computes the TotalSegmentator heartchambers_highres segmentations
+- Predicts the LAA using the [NUDF framework](https://link.springer.com/chapter/10.1007/978-3-030-87196-3_38)
+- Connects the pulmonary veins to the left atrium using a combination of distance fields, HU statistics and morphological operations.
 - Use the provided manual annotations of the coronary arteries from the ImageCAS data
-- Connect the coronary arteries to the aorta (if possible)
-- Threshold the coronary arteries so only voxels with a HU value above 20 are kept.
+- Connects the coronary arteries to the aorta (if possible)
+- Thresholds the coronary arteries so only voxels with a HU value above 20 are kept.
 
-Please note that the manual coronary artery segmentations provided by ImageCAS is of varying quality and sometime include coronary veins. They are, however, by far the most comprehensive open data set currently available.
+Please note that the manual coronary artery segmentations provided by ImageCAS is of varying quality and sometimes include coronary veins. They are, however, by far the most comprehensive open data set currently available.
  
