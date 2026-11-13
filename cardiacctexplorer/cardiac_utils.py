@@ -945,19 +945,24 @@ def create_image_slices_from_segmentation(params):
     if ct_img is None:
         return False
 
-    min_hu = 0
+    min_hu = -200
     max_hu = 500
+    # In case of metals we limit the highest HU value to 1200 to avoid the metal artifact to dominate the image
+    max_max_hu = 1200
     if os.path.exists(hu_stats_name):
         with open(hu_stats_name, "r") as f:
             hu_stats = json.load(f)
-            la_q001_hu = hu_stats.get("la_hu_q001", 100000)
-            pv_q001 = hu_stats.get("pv_hu_q001", 100000)
-            aorta_q001 = hu_stats.get("aorta_hu_q001", 100000)
-            la_q999 = hu_stats.get("la_hu_q999", 0)
-            pv_q999 = hu_stats.get("pv_hu_q999", 0)
-            aorta_q999 = hu_stats.get("aorta_hu_q999", 0)
-            min_hu = min(la_q001_hu, pv_q001, aorta_q001, min_hu)
-            max_hu = max(la_q999, pv_q999, aorta_q999, max_hu)
+            la_q01_hu = hu_stats.get("la_hu_q01", 100000)
+            pv_q01 = hu_stats.get("pv_hu_q01", 100000)
+            aorta_q01 = hu_stats.get("aorta_hu_q01", 100000)
+            myo_q01 = hu_stats.get("myocardium_hu_q01", 100000)
+            la_q99 = hu_stats.get("la_hu_q99", 0)
+            pv_q99 = hu_stats.get("pv_hu_q99", 0)
+            aorta_q99 = hu_stats.get("aorta_hu_q99", 0)
+            myo_q99 = hu_stats.get("myocardium_hu_q99", 0)
+            min_hu = min(la_q01_hu, pv_q01, aorta_q01, min_hu, myo_q01)
+            max_hu = max(la_q99, pv_q99, aorta_q99, max_hu, myo_q99)
+            max_hu = min(max_hu, max_max_hu)
     if verbose:
         print(f"Using HU value range {min_hu:.0f} - {max_hu:.0f} for cardiac segmentation slices")
 

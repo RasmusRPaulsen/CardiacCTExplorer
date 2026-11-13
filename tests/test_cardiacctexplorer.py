@@ -31,7 +31,7 @@ def test_cardiacctexplorer():
     # input_file = "C:/data/AortaExplorer/input/DTU_049.nii.gz"
     # input_file = "C:/data/AortaExplorer/input/DTU_050.nii.gz"
     # params["compute_centerline_from_ts_segmentation"] = True
-    output_folder = "C:/data/CardiacCTExplorer/Debug-output/"
+    # output_folder = "C:/data/CardiacCTExplorer/Debug-output/"
 
     # Type 1:
     # input_file = "C:/data/AortaExplorer/input/DTU_051.nii.gz"
@@ -168,12 +168,12 @@ def test_cardiacctexplorer():
     # params["num_proc_total_segmentator"] = 3
 
     # input_file = "C:/data/CardiacCTExplorer/ImageCAS-in/"
-    input_file = "C:/data/CoronaryArteries/ImageCAS/volumes/"
+    # input_file = "C:/data/CoronaryArteries/ImageCAS/volumes/"
     # input_file = "C:/data/CoronaryArteries/ImageCAS/volumes/2.img.nii.gz"
-    params["image_cas_mode"] = True
+    # params["image_cas_mode"] = True
     # input_file = "C:/data/CardiacCTExplorer/input/3.img.nii.gz"
     # input_file = "C:/data/CardiacCTExplorer/input/"
-    output_folder = "C:/data/CardiacCTExplorer/ImageCAS-output/"
+    # output_folder = "C:/data/CardiacCTExplorer/ImageCAS-output/"
     # params["num_proc_general"] = 1
 
     # input_file = "C:/data/CoronaryArteries/UK/855916/CTCA/Normal_1.nrrd"
@@ -184,6 +184,32 @@ def test_cardiacctexplorer():
     # input_file = "C:/data/CardiacCTExplorer/input/"
     # output_folder = "C:/data/CardiacCTExplorer/ASOCA-output/"
     # params["num_proc_general"] = 1
+    params["segment_id_to_slice"] = 1
+
+    # input_file = "/data/PACSTransfers/DTU-Notion-4-Pilot/DTU-Notion-4-Pilot_nifti/Notion-4-Pilot_0000_SERIES0006.nii.gz"
+    # input_file = "/data/PACSTransfers/DTU-Notion-4-Pilot/DTU-Notion-4-Pilot_nifti/Notion-4-Pilot_0000_SERIES0073.nii.gz"
+    # input_file = "/data/PACSTransfers/DTU-Notion-4-Pilot/DTU-Notion-4-Pilot_nifti/Notion-4-Pilot_0000_SERIES0011.nii.gz"
+    # input_file = "/data/PACSTransfers/DTU-Notion-4-Pilot/DTU-Notion-4-Pilot_nifti/Notion-4-Pilot_0002_SERIES0002.nii.gz"
+    # input_file = "/data/PACSTransfers/DTU-Notion-4-Pilot/DTU-Notion-4-Pilot_nifti/Notion-4-Pilot_0002_SERIES0038_volume_0.nii.gz"
+    # input_file = "/data/PACSTransfers/DTU-Notion-4-Pilot/DTU-Notion-4-cardiac-ce.txt"
+    # output_folder = "/data/Data/RAPA/CardiacCTExplorer/Notion-4-pilot-output/"
+    input_file = "/storage/PACSTransfers/DTU-Notion-4-Pilot/DTU-Notion-4-list-01-07-2026.txt"
+    output_folder = "/data/Data/RAPA/CardiacCTExplorer/Notion-4-pilot-output/"
+
+    # input_file = "/storage/Data/DTU-Dimension/Metadata/all_cardiac_ce.txt"
+    # output_folder = "/data/Data/RAPA/CardiacCTExplorer/Dimension-output/"
+
+    # input_file = "/storage/Data/Notion-4-AUH-raw/AUH/"
+    # output_folder = "/storage/Data/Notion-4-AUH-raw/CardiacCTExplorer/"
+    # params["recurse_subfolders"] = True
+
+    # input_file = "/data/Data/RAPA/CardiacCTExplorer/Glorious-1-input/"
+    # output_folder = "/data/Data/RAPA/CardiacCTExplorer/Glorious-1-output/"
+
+    params["num_proc_total_segmentator"] = 3
+    params["num_proc_general"] = 16
+    params["out_of_reconstruction_value"] = -2000
+
 
     cardiacctexplorer(input_file, output_folder, params)
 

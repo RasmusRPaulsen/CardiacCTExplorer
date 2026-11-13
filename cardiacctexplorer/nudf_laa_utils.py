@@ -76,6 +76,7 @@ def compute_hu_statistics(params):
     la_segm_id = 2
     pv_segm_id = 53
     aorta_segm_id = 6
+    myo_segm_id = 1
 
     if os.path.exists(stats_out_name):
         if not quiet:
@@ -104,6 +105,7 @@ def compute_hu_statistics(params):
     la_mask = label_img_hc_np == la_segm_id
     aorta_mask = label_img_hc_np == aorta_segm_id
     spacing = label_img_total.GetSpacing()
+    myo_mask = label_img_hc_np == myo_segm_id
 
     hu_stats = {}
     compute_mask_hu_statistics(ct_img_np, pv_mask, spacing, "pv", segm_name_total,
@@ -112,6 +114,8 @@ def compute_hu_statistics(params):
                                          params, hu_stats)
     compute_mask_hu_statistics(ct_img_np, aorta_mask, spacing, "aorta", segm_name_hc,
                                          params, hu_stats)
+    compute_mask_hu_statistics(ct_img_np, myo_mask, spacing, "myocardium", segm_name_hc,
+                               params, hu_stats)
 
     json_object = json.dumps(hu_stats, indent=4)
     with open(stats_out_name, "w") as outfile:
